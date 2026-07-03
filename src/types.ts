@@ -92,9 +92,11 @@ export type DeyeEnergyManagerCardConfig = {
   name?: string;
   entity_prefix?: string;
   compact?: boolean;
+  show_details?: boolean;
   show_controls?: boolean;
   show_power_flow?: boolean;
   show_debug_reasons?: boolean;
+  animate_flows?: boolean;
   entities?: Partial<Record<EntityKey | string, string>>;
 };
 

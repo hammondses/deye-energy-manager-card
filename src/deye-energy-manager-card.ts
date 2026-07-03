@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.2.0";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -36,10 +36,12 @@ export class DeyeEnergyManagerCard extends LitElement {
     if (!config) throw new Error("Invalid configuration");
     this.config = {
       name: "Deye Energy Manager",
-      compact: false,
+      compact: true,
+      show_details: false,
       show_controls: false,
       show_power_flow: true,
       show_debug_reasons: false,
+      animate_flows: true,
       ...config,
     };
     this.entities = buildEntityMap(this.config);
@@ -58,19 +60,43 @@ export class DeyeEnergyManagerCard extends LitElement {
       return !entity;
     });
 
+    return this.config.compact ? this.renderCompact(missingRequired) : this.renderFull(missingRequired);
+  }
+
+  private renderFull(missingRequired: EntityKey[]): TemplateResult {
     return html`
       <ha-card>
-        <div class="card">
+        <div class="card full-card">
           ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
           ${this.renderHeader()}
           <div class="grid">
-            ${this.config.show_power_flow === false ? nothing : this.renderPowerFlow()}
+            ${this.config?.show_power_flow === false ? nothing : this.renderPowerFlow()}
             ${this.renderBatteryTarget()}
             ${this.renderEnergyBudget()}
             ${this.renderDecisionMatrix()}
             ${this.renderManagedLoads()}
-            ${this.config.show_controls ? this.renderControls() : nothing}
+            ${this.config?.show_controls ? this.renderControls() : nothing}
           </div>
+        </div>
+      </ha-card>
+    `;
+  }
+
+  private renderCompact(missingRequired: EntityKey[]): TemplateResult {
+    const flow = this.currentFlowState();
+    const policy = cleanState(this.entity("thermalPolicyState"));
+    const tone = statusToneForPolicy(policy);
+
+    return html`
+      <ha-card>
+        <div class="card compact-card ${this.config?.animate_flows === false ? "no-animate" : "animate"}">
+          ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
+          ${this.renderCompactHeader(tone)}
+          ${this.config?.show_power_flow === false ? nothing : this.renderFlowHero(flow)}
+          ${this.renderMetricStrip()}
+          ${this.renderCompactDecisionChips()}
+          ${this.renderDetailsDrawer()}
+          ${this.config?.show_controls ? this.renderControls() : nothing}
         </div>
       </ha-card>
     `;
@@ -119,8 +145,43 @@ export class DeyeEnergyManagerCard extends LitElement {
     `;
   }
 
-  private renderPowerFlow(): TemplateResult {
-    const flow = buildFlowState({
+  private renderCompactHeader(tone: StatusTone): TemplateResult {
+    const policy = cleanState(this.entity("thermalPolicyState"));
+    const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
+    const budget = numberState(this.entity("discretionaryEnergyBudget"));
+    const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
+    const reason = cleanState(this.entity("thermalActionReason")) ?? cleanState(this.entity("energyBudgetReason"));
+    const shortReason = reachable === false
+      ? "Target not reachable today"
+      : reason ? reason : formatLabel(expected);
+
+    return html`
+      <section class="hero-header ${tone}">
+        <div class="hero-title">
+          <div>
+            <h2>${this.config?.name}</h2>
+            <div class="hero-subtitle">
+              ${formatLabel(policy)} · ${formatLabel(expected)} · Budget ${formatEnergy(budget)}
+            </div>
+          </div>
+          <span class="status-badge ${budgetTone(budget)}">${this.statusBadgeLabel(policy, budget)}</span>
+        </div>
+        <div class="hero-reason">${shortReason}</div>
+      </section>
+    `;
+  }
+
+  private statusBadgeLabel(policy?: string, budget?: number): string {
+    if (policy === "emergency_shed") return "Emergency";
+    if (policy === "shed") return "Shed";
+    if (policy === "solar_soak_full_send") return "Full send";
+    if (policy === "solar_soak_allowed") return "Soak";
+    if ((budget ?? 0) < -0.5) return "Conserve";
+    return formatLabel(policy);
+  }
+
+  private currentFlowState(): FlowState {
+    return buildFlowState({
       pvPower: this.entity("pvPower"),
       batteryCharge: this.entity("batteryCharge"),
       batteryDischarge: this.entity("batteryDischarge"),
@@ -129,6 +190,214 @@ export class DeyeEnergyManagerCard extends LitElement {
       evPower: this.entity("evDetectedPower"),
       thermalLoads: this.entity("activeThermalLoads"),
     });
+  }
+
+  private batterySoc(): number | undefined {
+    return numberState(this.entity("rawSoc"))
+      ?? this.attributeNumber(this.entity("socSource"), [
+        "soc",
+        "battery_soc",
+        "current_soc",
+        "last_known_good_soc",
+        "last_known_soc",
+        "value",
+      ]);
+  }
+
+  private attributeNumber(entity: HassEntityState | undefined, names: string[]): number | undefined {
+    if (!entity) return undefined;
+    for (const name of names) {
+      const value = Number(entity.attributes[name]);
+      if (Number.isFinite(value)) return value;
+    }
+    return undefined;
+  }
+
+  private renderFlowHero(flow: FlowState): TemplateResult {
+    const soc = this.batterySoc();
+    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const batteryState = flow.batteryCharging
+      ? `Charging ${formatPower(flow.batteryCharge)}`
+      : flow.batteryDischarging
+        ? `Discharging ${formatPower(flow.batteryDischarge)}`
+        : "Idle";
+
+    return html`
+      <section class="flow-hero">
+        ${this.renderHeroFlowLines(flow)}
+        ${this.heroNode("PV", "mdi:solar-power-variant", formatPower(flow.pvPower), "pv")}
+        ${this.heroNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), "grid")}
+        ${this.heroNode("Home", "mdi:home-lightning-bolt", formatPower(flow.housePower), "home primary")}
+        ${this.heroNode("Load", "mdi:flash", formatPower(flow.housePower), "load")}
+        ${this.batteryNode(soc, target, batteryState)}
+        ${this.heroNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", `ev ${flow.evActive ? "active" : ""}`)}
+        ${this.heroNode("Heat", "mdi:heat-pump", flow.thermalActive ? formatLabel(flow.thermalLoads) : "Idle", `heat ${flow.thermalActive ? "active" : ""}`)}
+      </section>
+    `;
+  }
+
+  private renderHeroFlowLines(flow: FlowState): TemplateResult {
+    return html`
+      <svg class="hero-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <marker id="hero-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z"></path>
+          </marker>
+        </defs>
+        ${this.flowPath("M50 16 C50 28 50 34 50 43", flow.pvActive, flow.pvPower)}
+        ${this.flowPath(flow.gridImporting ? "M16 50 C27 50 35 50 44 50" : "M44 50 C35 50 27 50 16 50", flow.gridImporting || flow.gridExporting, flow.gridPower)}
+        ${this.flowPath("M56 50 C65 50 73 50 84 50", true, flow.housePower)}
+        ${this.flowPath(flow.batteryDischarging ? "M50 79 C50 68 50 61 50 57" : "M50 57 C50 65 50 70 50 79", flow.batteryCharging || flow.batteryDischarging, flow.batteryCharge ?? flow.batteryDischarge)}
+        ${this.flowPath("M57 57 C64 66 68 73 73 82", flow.evActive, flow.evPower)}
+        ${this.flowPath("M43 57 C36 66 32 73 27 82", flow.thermalActive)}
+        ${this.flowPath("M52 18 C62 27 70 35 84 45", flow.pvActive && flow.gridExporting, flow.pvPower)}
+      </svg>
+    `;
+  }
+
+  private flowPath(path: string, active: boolean, power?: number): TemplateResult {
+    const width = Math.max(2.2, Math.min(6, Math.abs(power ?? 500) / 700));
+    return html`<path class="hero-flow ${active ? "active" : ""}" d=${path} style=${`--flow-width:${width.toFixed(1)};`}></path>`;
+  }
+
+  private heroNode(label: string, icon: string, value: string, className: string): TemplateResult {
+    return html`
+      <div class=${`hero-node ${className}`}>
+        <ha-icon icon=${icon}></ha-icon>
+        <span>${label}</span>
+        <strong>${value}</strong>
+      </div>
+    `;
+  }
+
+  private batteryNode(soc?: number, target?: number, stateText = "Idle"): TemplateResult {
+    const fill = Math.max(0, Math.min(100, soc ?? 0));
+    const marker = Math.max(0, Math.min(100, target ?? 0));
+    return html`
+      <div class="hero-node battery primary">
+        <div class="battery-visual" style=${`--soc:${fill}%;--target:${marker}%;`}>
+          <div class="battery-tip"></div>
+          <div class="battery-shell">
+            <span class="battery-fill"></span>
+            ${target !== undefined ? html`<span class="battery-target"></span>` : nothing}
+          </div>
+        </div>
+        <span>Battery</span>
+        <strong>${formatPercent(soc)} · ${stateText}</strong>
+      </div>
+    `;
+  }
+
+  private renderMetricStrip(): TemplateResult {
+    const soc = this.batterySoc();
+    const source = cleanState(this.entity("socSource"));
+    const age = numberState(this.entity("socAgeMinutes"));
+    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
+    const need = numberState(this.entity("batteryKwhNeededToTarget"));
+    const solar = numberState(this.entity("remainingSolarBudget"));
+    const budget = numberState(this.entity("discretionaryEnergyBudget"));
+
+    return html`
+      <section class="metric-strip">
+        ${this.metricPill("SOC", `${formatPercent(soc)} → ${formatPercent(target)}`, source === "last_known_good" ? "amber" : "blue", source === "last_known_good" ? `SOC cached${age !== undefined ? ` · ${Math.round(age)}m` : ""}` : undefined)}
+        ${this.metricPill("Need", formatEnergy(need), need !== undefined && need > 0 ? "amber" : "green", reachable === false ? "Target not reachable" : undefined)}
+        ${this.metricPill("Solar left", formatEnergy(solar), "blue")}
+        ${this.metricPill("Budget", formatEnergy(budget), budgetTone(budget))}
+      </section>
+    `;
+  }
+
+  private metricPill(label: string, value: string, tone: StatusTone, note?: string): TemplateResult {
+    return html`
+      <div class=${`metric-pill ${tone}`}>
+        <span>${label}</span>
+        <strong>${value}</strong>
+        ${note ? html`<em>${note}</em>` : nothing}
+      </div>
+    `;
+  }
+
+  private renderCompactDecisionChips(): TemplateResult {
+    const chips = this.compactGateChips();
+    return html`<section class="compact-decisions">${chips}</section>`;
+  }
+
+  private compactGateChips(): Array<TemplateResult | typeof nothing> {
+    const gates: Array<[EntityKey, string, string, string, boolean]> = [
+      ["batteryTargetReachableToday", "Target", "Yes", "No", true],
+      ["discretionaryBudgetPositive", "Budget", "Positive", "Negative", true],
+      ["solarSoakAllowed", "Soak", "Allowed", "Blocked", true],
+      ["paidGridAvoidanceRequired", "Grid", "Avoid", "Idle", false],
+      ["thermalShouldShed", "Shed", "Yes", "No", false],
+      ["underfloorComfortAllowed", "Floor", "Allowed", "Hold", true],
+      ["evChargingDetected", "EV", "Charging", "Idle", true],
+    ];
+
+    return gates.map(([key, label, onText, offText, positiveWhenOn]) => {
+      const value = binaryOn(this.entity(key));
+      if (value === undefined) return nothing;
+      return chip({ label, value: value ? onText : offText, tone: booleanTone(value, positiveWhenOn) });
+    });
+  }
+
+  private renderDetailsDrawer(): TemplateResult {
+    return html`
+      <section class="drawer">
+        <details ?open=${this.config?.show_details}>
+          <summary>Details</summary>
+          <div class="drawer-body">
+            ${this.renderEnergyBudgetDetail()}
+            ${this.renderDecisionMatrix()}
+            ${this.renderManagedLoads()}
+            ${this.renderSocDetail()}
+          </div>
+        </details>
+      </section>
+    `;
+  }
+
+  private renderEnergyBudgetDetail(): TemplateResult {
+    const remainingSolar = numberState(this.entity("remainingSolarBudget"));
+    const batteryNeed = numberState(this.entity("batteryKwhNeededToTarget"));
+    const houseLoad = numberState(this.entity("expectedHouseLoadUntilSolarEnd"));
+    const buffer = numberState(this.entity("forecastFullConfidenceBuffer"));
+    const budget = numberState(this.entity("discretionaryEnergyBudget"));
+    const reason = cleanState(this.entity("energyBudgetReason"));
+
+    return html`
+      <div class="detail-block">
+        <h3>Energy Budget</h3>
+        <div class="budget-line">
+          ${formatEnergy(remainingSolar)} solar - ${formatEnergy(batteryNeed)} battery -
+          ${formatEnergy(houseLoad)} house - ${formatEnergy(buffer)} buffer = ${formatEnergy(budget)}
+        </div>
+        ${reason ? html`<div class="reason">${reason}</div>` : nothing}
+      </div>
+    `;
+  }
+
+  private renderSocDetail(): TemplateResult {
+    const source = cleanState(this.entity("socSource"));
+    const age = numberState(this.entity("socAgeMinutes"));
+    const projectedEnd = numberState(this.entity("projectedEndSoc"));
+    const full = cleanState(this.entity("projectedTimeToFull"));
+
+    return html`
+      <div class="detail-block">
+        <h3>SOC Source</h3>
+        <div class="chips">
+          ${chip({ label: "Source", value: formatLabel(source), tone: source === "last_known_good" ? "amber" : "blue" })}
+          ${age !== undefined ? chip({ label: "Age", value: `${Math.round(age)}m`, tone: "grey" }) : nothing}
+          ${chip({ label: "Projected", value: formatPercent(projectedEnd), tone: "grey" })}
+          ${full ? chip({ label: "Full", value: full, tone: "grey" }) : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderPowerFlow(): TemplateResult {
+    const flow = this.currentFlowState();
 
     return html`
       <section class="panel wide">
@@ -186,7 +455,7 @@ export class DeyeEnergyManagerCard extends LitElement {
   }
 
   private renderBatteryTarget(): TemplateResult {
-    const soc = numberState(this.entity("rawSoc"));
+    const soc = this.batterySoc();
     const source = cleanState(this.entity("socSource"));
     const age = numberState(this.entity("socAgeMinutes"));
     const target = numberState(this.entity("dailyBatteryTargetSoc"));

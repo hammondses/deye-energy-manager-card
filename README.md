@@ -12,13 +12,12 @@ This pass focuses on correct structure, entity mapping, responsive layout, and c
 
 ## Features
 
-- Controller status header with policy state, expected action, tariff window, solar phase, active plan, budget, and reason.
-- Basic power-flow diagram for PV, house, battery, grid, EV, and thermal loads.
-- Battery target panel with SOC source, SOC age, target SOC, kWh needed, reachability, and projections.
-- Rolling energy budget panel.
-- Decision matrix for controller gates.
-- Managed thermal, underfloor, and EV load rows.
-- Optional controls section for safe switches and guarded action buttons.
+- Compact commercial-style header with policy state, expected action, budget, and reason.
+- Sunsynk-style animated power-flow hero for PV, grid, home/load, battery, EV, and thermal loads.
+- Compact battery and energy budget strip with SOC target, need, solar left, and discretionary budget.
+- One or two rows of high-priority decision chips.
+- Collapsed details drawer for budget calculation, full gate matrix, reasons, SOC source, and managed loads.
+- Optional collapsed controls drawer for safe switches and guarded action buttons.
 - Prefix-based defaults plus per-entity overrides.
 - Graceful handling for optional missing entities.
 
@@ -72,10 +71,12 @@ dist/deye-energy-manager-card.js
 type: custom:deye-energy-manager-card
 name: Deye Energy Manager
 entity_prefix: garage_deye_energy_manager
-compact: false
-show_controls: true
+compact: true
+show_details: false
+show_controls: false
 show_power_flow: true
-show_debug_reasons: true
+show_debug_reasons: false
+animate_flows: true
 entities:
   rawSoc: sensor.deye_battery_soc
   gridPower: sensor.deye_grid_ct_power
@@ -84,6 +85,8 @@ entities:
 ```
 
 `entity_prefix` defaults to `garage_deye_energy_manager`.
+`compact` defaults to `true`. Set `compact: false` to use the original Pass 1 expanded diagnostic layout.
+Controls are hidden unless `show_controls: true`.
 
 ## Core Entities
 
@@ -160,11 +163,10 @@ The card does not write inverter values directly. It only invokes the Home Assis
 
 ## Screenshots
 
-Placeholder for Pass 2 visual polish screenshots.
+Placeholder for compact hero card screenshots.
 
 ## Notes for Later Passes
 
-- Replace text placeholders in the flow nodes with polished icons or illustrations.
-- Add subtle animated flow lines once the v1 data model is proven.
 - Add a Lovelace visual editor.
 - Add number/select controls for battery target, forecast buffer, underfloor comfort, thermal SOC thresholds, and full soak thresholds.
+- Add richer illustrations or alternate skins without changing the entity/data-flow model.
