@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.0";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -30,6 +30,8 @@ export class DeyeEnergyManagerCard extends LitElement {
 
   @property({ attribute: false }) public hass?: HomeAssistant;
   @litState() private config?: DeyeEnergyManagerCardConfig;
+  @litState() private detailsOpen = false;
+  @litState() private controlsOpen = false;
   private entities?: EntityMap;
 
   public setConfig(config: DeyeEnergyManagerCardConfig): void {
@@ -150,33 +152,34 @@ export class DeyeEnergyManagerCard extends LitElement {
     const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
     const budget = numberState(this.entity("discretionaryEnergyBudget"));
     const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
-    const reason = cleanState(this.entity("thermalActionReason")) ?? cleanState(this.entity("energyBudgetReason"));
     const shortReason = reachable === false
       ? "Target not reachable today"
-      : reason ? reason : formatLabel(expected);
+      : formatLabel(expected);
 
     return html`
       <section class="hero-header ${tone}">
         <div class="hero-title">
           <div>
             <h2>${this.config?.name}</h2>
-            <div class="hero-subtitle">
-              ${formatLabel(policy)} · ${formatLabel(expected)} · Budget ${formatEnergy(budget)}
-            </div>
+            <div class="hero-subtitle">${shortReason}</div>
           </div>
-          <span class="status-badge ${budgetTone(budget)}">${this.statusBadgeLabel(policy, budget)}</span>
+          <div class="header-badges">
+            <span class="status-badge ${tone}">${this.statusBadgeLabel(policy)}</span>
+            <span class="status-badge ${budgetTone(budget)}">Budget ${formatEnergy(budget)}</span>
+          </div>
         </div>
-        <div class="hero-reason">${shortReason}</div>
+        <div class="hero-reason">
+          ${formatLabel(policy)} · ${reachable === false ? "Target not reachable" : "Target status unknown"} · ${formatLabel(expected)}
+        </div>
       </section>
     `;
   }
 
-  private statusBadgeLabel(policy?: string, budget?: number): string {
+  private statusBadgeLabel(policy?: string): string {
     if (policy === "emergency_shed") return "Emergency";
     if (policy === "shed") return "Shed";
     if (policy === "solar_soak_full_send") return "Full send";
     if (policy === "solar_soak_allowed") return "Soak";
-    if ((budget ?? 0) < -0.5) return "Conserve";
     return formatLabel(policy);
   }
 
@@ -216,56 +219,90 @@ export class DeyeEnergyManagerCard extends LitElement {
   private renderFlowHero(flow: FlowState): TemplateResult {
     const soc = this.batterySoc();
     const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const policy = cleanState(this.entity("thermalPolicyState"));
+    const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
+    const tone = statusToneForPolicy(policy);
+    const underfloorAllowed = binaryOn(this.entity("underfloorComfortAllowed"));
+    const underfloorPolicy = cleanState(this.entity("underfloorPolicyState"));
     const batteryState = flow.batteryCharging
       ? `Charging ${formatPower(flow.batteryCharge)}`
       : flow.batteryDischarging
         ? `Discharging ${formatPower(flow.batteryDischarge)}`
         : "Idle";
+    const heatLabel = flow.thermalActive
+      ? formatLabel(flow.thermalLoads)
+      : underfloorAllowed === false
+        ? "Hold"
+        : underfloorPolicy
+          ? formatLabel(underfloorPolicy)
+          : "Idle";
 
     return html`
-      <section class="flow-hero">
+      <section class=${`flow-hero sunsynk ${tone}`}>
         ${this.renderHeroFlowLines(flow)}
-        ${this.heroNode("PV", "mdi:solar-power-variant", formatPower(flow.pvPower), "pv")}
-        ${this.heroNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), "grid")}
-        ${this.heroNode("Home", "mdi:home-lightning-bolt", formatPower(flow.housePower), "home primary")}
-        ${this.heroNode("Load", "mdi:flash", formatPower(flow.housePower), "load")}
+        ${this.powerNode("Solar", "mdi:solar-power-variant", formatPower(flow.pvPower), undefined, "solar", flow.pvActive)}
+        ${this.powerNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), undefined, "grid", flow.gridImporting || flow.gridExporting)}
+        ${this.controllerNode(policy, expected, tone)}
+        ${this.powerNode("Load", "mdi:home-lightning-bolt", formatPower(flow.housePower), undefined, "load", (flow.housePower ?? 0) > 100)}
         ${this.batteryNode(soc, target, batteryState)}
-        ${this.heroNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", `ev ${flow.evActive ? "active" : ""}`)}
-        ${this.heroNode("Heat", "mdi:heat-pump", flow.thermalActive ? formatLabel(flow.thermalLoads) : "Idle", `heat ${flow.thermalActive ? "active" : ""}`)}
+        ${this.powerNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", undefined, "ev satellite", flow.evActive)}
+        ${this.powerNode("Heat/Floor", "mdi:heat-pump", heatLabel, undefined, "heat satellite", flow.thermalActive || underfloorAllowed === false)}
       </section>
     `;
   }
 
   private renderHeroFlowLines(flow: FlowState): TemplateResult {
+    const loadActive = (flow.housePower ?? 0) > 100;
+    const gridActive = flow.gridImporting || flow.gridExporting;
+    const batteryActive = flow.batteryCharging || flow.batteryDischarging;
+
     return html`
       <svg class="hero-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>
-          <marker id="hero-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <marker id="hero-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">
             <path d="M 0 0 L 10 5 L 0 10 z"></path>
           </marker>
         </defs>
-        ${this.flowPath("M50 16 C50 28 50 34 50 43", flow.pvActive, flow.pvPower)}
-        ${this.flowPath(flow.gridImporting ? "M16 50 C27 50 35 50 44 50" : "M44 50 C35 50 27 50 16 50", flow.gridImporting || flow.gridExporting, flow.gridPower)}
-        ${this.flowPath("M56 50 C65 50 73 50 84 50", true, flow.housePower)}
-        ${this.flowPath(flow.batteryDischarging ? "M50 79 C50 68 50 61 50 57" : "M50 57 C50 65 50 70 50 79", flow.batteryCharging || flow.batteryDischarging, flow.batteryCharge ?? flow.batteryDischarge)}
-        ${this.flowPath("M57 57 C64 66 68 73 73 82", flow.evActive, flow.evPower)}
-        ${this.flowPath("M43 57 C36 66 32 73 27 82", flow.thermalActive)}
-        ${this.flowPath("M52 18 C62 27 70 35 84 45", flow.pvActive && flow.gridExporting, flow.pvPower)}
+        ${this.flowPath("solar", "M50 22 L50 41", flow.pvActive, flow.pvPower)}
+        ${this.flowPath("grid", flow.gridExporting ? "M42 50 L23 50" : "M23 50 L42 50", gridActive, flow.gridPower, flow.gridExporting)}
+        ${this.flowPath("load", "M58 50 L77 50", loadActive, flow.housePower)}
+        ${this.flowPath("battery", flow.batteryDischarging ? "M50 77 L50 59" : "M50 59 L50 77", batteryActive, flow.batteryCharge ?? flow.batteryDischarge, flow.batteryDischarging)}
+        ${this.flowPath("ev", "M45 58 C39 65 33 72 27 80", flow.evActive, flow.evPower)}
+        ${this.flowPath("heat", "M55 58 C61 65 67 72 73 80", flow.thermalActive)}
       </svg>
     `;
   }
 
-  private flowPath(path: string, active: boolean, power?: number): TemplateResult {
-    const width = Math.max(2.2, Math.min(6, Math.abs(power ?? 500) / 700));
-    return html`<path class="hero-flow ${active ? "active" : ""}" d=${path} style=${`--flow-width:${width.toFixed(1)};`}></path>`;
+  private flowPath(channel: string, path: string, active: boolean, power?: number, reverse = false): TemplateResult {
+    const width = Math.max(2.4, Math.min(5.6, Math.abs(power ?? 350) / 650));
+    return html`<path class=${`hero-flow ${channel} ${active ? "active" : ""} ${reverse ? "reverse" : ""}`} d=${path} style=${`--flow-width:${width.toFixed(1)};`}></path>`;
   }
 
-  private heroNode(label: string, icon: string, value: string, className: string): TemplateResult {
+  private powerNode(
+    label: string,
+    icon: string,
+    value: string,
+    subvalue: string | undefined,
+    className: string,
+    active: boolean,
+  ): TemplateResult {
     return html`
-      <div class=${`hero-node ${className}`}>
+      <div class=${`sun-node ${className} ${active ? "active" : ""}`}>
         <ha-icon icon=${icon}></ha-icon>
         <span>${label}</span>
         <strong>${value}</strong>
+        ${subvalue ? html`<em>${subvalue}</em>` : nothing}
+      </div>
+    `;
+  }
+
+  private controllerNode(policy?: string, expected?: string, tone: StatusTone = "grey"): TemplateResult {
+    return html`
+      <div class=${`sun-node controller active ${tone}`}>
+        <ha-icon icon="mdi:lightning-bolt-circle"></ha-icon>
+        <span>Controller</span>
+        <strong>${formatLabel(policy)}</strong>
+        <em>${formatLabel(expected)}</em>
       </div>
     `;
   }
@@ -274,7 +311,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     const fill = Math.max(0, Math.min(100, soc ?? 0));
     const marker = Math.max(0, Math.min(100, target ?? 0));
     return html`
-      <div class="hero-node battery primary">
+      <div class="sun-node battery active">
         <div class="battery-visual" style=${`--soc:${fill}%;--target:${marker}%;`}>
           <div class="battery-tip"></div>
           <div class="battery-shell">
@@ -342,19 +379,26 @@ export class DeyeEnergyManagerCard extends LitElement {
   }
 
   private renderDetailsDrawer(): TemplateResult {
+    const open = Boolean(this.config?.show_details || this.detailsOpen);
     return html`
       <section class="drawer">
-        <details ?open=${this.config?.show_details}>
+        <details ?open=${open} @toggle=${this.handleDetailsToggle}>
           <summary>Details</summary>
-          <div class="drawer-body">
-            ${this.renderEnergyBudgetDetail()}
-            ${this.renderDecisionMatrix()}
-            ${this.renderManagedLoads()}
-            ${this.renderSocDetail()}
-          </div>
+          ${open ? html`
+            <div class="drawer-body">
+              ${this.renderEnergyBudgetDetail()}
+              ${this.renderDecisionMatrix()}
+              ${this.renderManagedLoads()}
+              ${this.renderSocDetail()}
+            </div>
+          ` : nothing}
         </details>
       </section>
     `;
+  }
+
+  private handleDetailsToggle(event: Event): void {
+    this.detailsOpen = (event.currentTarget as HTMLDetailsElement).open;
   }
 
   private renderEnergyBudgetDetail(): TemplateResult {
@@ -652,6 +696,7 @@ export class DeyeEnergyManagerCard extends LitElement {
   }
 
   private renderControls(): TemplateResult {
+    const open = this.controlsOpen;
     const switches: Array<[EntityKey, string]> = [
       ["thermalControlEnabled", "Thermal control"],
       ["paidTimeGridAvoidanceEnabled", "Paid grid avoidance"],
@@ -669,16 +714,22 @@ export class DeyeEnergyManagerCard extends LitElement {
     ];
 
     return html`
-      <section class="panel wide">
-        <details>
+      <section class="drawer controls-drawer">
+        <details ?open=${open} @toggle=${this.handleControlsToggle}>
           <summary>Controls</summary>
-          <div class="control-list">
-            ${switches.map(([key, label]) => this.renderSwitchControl(key, label))}
-            ${buttons.map(([key, label, danger]) => this.renderButtonControl(key, label, danger))}
-          </div>
+          ${open ? html`
+            <div class="control-list drawer-body">
+              ${switches.map(([key, label]) => this.renderSwitchControl(key, label))}
+              ${buttons.map(([key, label, danger]) => this.renderButtonControl(key, label, danger))}
+            </div>
+          ` : nothing}
         </details>
       </section>
     `;
+  }
+
+  private handleControlsToggle(event: Event): void {
+    this.controlsOpen = (event.currentTarget as HTMLDetailsElement).open;
   }
 
   private renderSwitchControl(key: EntityKey, label: string): TemplateResult | typeof nothing {

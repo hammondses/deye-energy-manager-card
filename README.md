@@ -13,7 +13,7 @@ This pass focuses on correct structure, entity mapping, responsive layout, and c
 ## Features
 
 - Compact commercial-style header with policy state, expected action, budget, and reason.
-- Sunsynk-style animated power-flow hero for PV, grid, home/load, battery, EV, and thermal loads.
+- Sunsynk-style central-controller power-flow hero for PV, grid, load, battery, EV, and thermal loads.
 - Compact battery and energy budget strip with SOC target, need, solar left, and discretionary budget.
 - One or two rows of high-priority decision chips.
 - Collapsed details drawer for budget calculation, full gate matrix, reasons, SOC source, and managed loads.

@@ -15,6 +15,13 @@ export const styles = css`
     --dem-text-muted: var(--secondary-text-color, #9ca3af);
     --dem-flow-active: #4ade80;
     --dem-flow-inactive: rgba(100, 116, 139, 0.32);
+    --flow-solar: #fbbf24;
+    --flow-grid: #60a5fa;
+    --flow-battery: #22c55e;
+    --flow-load: #e5e7eb;
+    --flow-ev: #a78bfa;
+    --flow-heat: #fb7185;
+    --flow-inactive: rgba(100, 116, 139, 0.34);
     --dem-green: var(--dem-accent-good);
     --dem-bright-green: var(--dem-accent-bright);
     --dem-blue: var(--dem-accent-info);
@@ -75,25 +82,30 @@ export const styles = css`
 
   .hero-header {
     display: grid;
-    gap: 4px;
-    padding: 10px 11px;
-    border: 1px solid var(--dem-border);
-    border-radius: 14px;
-    background: rgba(15, 23, 42, 0.72);
+    gap: 3px;
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   }
 
   .hero-title {
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    align-items: flex-start;
+    align-items: center;
+  }
+
+  .header-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 5px;
   }
 
   .status-badge {
     flex: 0 0 auto;
     border-radius: 999px;
-    padding: 5px 9px;
-    font-size: 0.74rem;
+    padding: 4px 8px;
+    font-size: 0.7rem;
     font-weight: 800;
     color: var(--dem-text-main);
     border: 1px solid color-mix(in srgb, var(--chip-tone) 55%, transparent);
@@ -120,13 +132,12 @@ export const styles = css`
 
   .flow-hero {
     position: relative;
-    height: 315px;
-    border: 1px solid var(--dem-border);
-    border-radius: 18px;
+    height: 292px;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 49%, rgba(56, 189, 248, 0.12), transparent 33%),
-      rgba(2, 6, 23, 0.42);
+      radial-gradient(circle at 50% 50%, rgba(148, 163, 184, 0.12), transparent 35%),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.3), rgba(2, 6, 23, 0.2));
+    border-radius: 14px;
   }
 
   .hero-lines {
@@ -134,26 +145,37 @@ export const styles = css`
     inset: 0;
     width: 100%;
     height: 100%;
-    color: var(--dem-flow-active);
+    color: var(--flow-load);
     pointer-events: none;
   }
 
   .hero-flow {
     fill: none;
-    stroke: var(--dem-flow-inactive);
+    stroke: var(--flow-inactive);
     stroke-width: var(--flow-width, 3);
     stroke-linecap: round;
     marker-end: url(#hero-arrow);
-    opacity: 0.62;
+    opacity: 0.56;
   }
 
   .hero-flow.active {
-    stroke: var(--dem-flow-active);
+    stroke: var(--flow-color);
     opacity: 1;
-    stroke-dasharray: 7 9;
-    animation: flow-pulse 1.2s linear infinite;
-    filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.55));
+    stroke-dasharray: 8 10;
+    animation: flow-pulse 1.15s linear infinite;
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--flow-color) 70%, transparent));
   }
+
+  .hero-flow.reverse.active {
+    animation-direction: reverse;
+  }
+
+  .hero-flow.solar { --flow-color: var(--flow-solar); }
+  .hero-flow.grid { --flow-color: var(--flow-grid); }
+  .hero-flow.battery { --flow-color: var(--flow-battery); }
+  .hero-flow.load { --flow-color: var(--flow-load); }
+  .hero-flow.ev { --flow-color: var(--flow-ev); }
+  .hero-flow.heat { --flow-color: var(--flow-heat); }
 
   .hero-lines marker path {
     fill: currentColor;
@@ -175,56 +197,79 @@ export const styles = css`
     }
   }
 
-  .hero-node {
+  .sun-node {
     position: absolute;
-    width: 86px;
-    min-height: 72px;
+    width: 78px;
+    min-height: 64px;
     display: grid;
     justify-items: center;
     align-content: center;
-    gap: 3px;
-    padding: 8px;
+    gap: 2px;
+    padding: 7px;
     box-sizing: border-box;
-    border-radius: 20px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.88));
-    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.08), transparent 34%),
+      rgba(15, 23, 42, 0.9);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 22px rgba(0, 0, 0, 0.28);
     text-align: center;
   }
 
-  .hero-node.primary {
-    width: 104px;
-    min-height: 86px;
-    border-color: rgba(56, 189, 248, 0.34);
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(8, 13, 26, 0.95));
+  .sun-node.active {
+    border-color: color-mix(in srgb, var(--node-color, var(--dem-accent-info)) 42%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 18px color-mix(in srgb, var(--node-color, var(--dem-accent-info)) 20%, transparent),
+      0 12px 24px rgba(0, 0, 0, 0.3);
   }
 
-  .hero-node ha-icon {
-    --mdc-icon-size: 22px;
-    color: var(--dem-accent-info);
+  .sun-node ha-icon {
+    --mdc-icon-size: 20px;
+    color: var(--node-color, var(--dem-accent-info));
   }
 
-  .hero-node span {
+  .sun-node span,
+  .sun-node em {
     color: var(--dem-text-muted);
-    font-size: 0.72rem;
+    font-size: 0.68rem;
+    font-style: normal;
   }
 
-  .hero-node strong {
+  .sun-node strong {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.8rem;
+    font-size: 0.77rem;
     line-height: 1.15;
   }
 
-  .pv { left: calc(50% - 43px); top: 11px; }
-  .grid { left: 16px; top: calc(50% - 36px); }
-  .home { left: calc(50% - 52px); top: calc(50% - 43px); }
-  .load { right: 16px; top: calc(50% - 36px); }
-  .battery { left: calc(50% - 52px); bottom: 12px; }
-  .ev { right: 44px; bottom: 16px; }
-  .heat { left: 44px; bottom: 16px; }
+  .solar { --node-color: var(--flow-solar); left: calc(50% - 39px); top: 5px; }
+  .grid { --node-color: var(--flow-grid); left: 8px; top: calc(50% - 32px); }
+  .load { --node-color: var(--flow-load); right: 8px; top: calc(50% - 32px); }
+  .controller {
+    --node-color: var(--tone);
+    left: calc(50% - 53px);
+    top: calc(50% - 43px);
+    width: 106px;
+    min-height: 86px;
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--tone) 22%, transparent), transparent 36%),
+      linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(2, 6, 23, 0.94));
+  }
+  .controller ha-icon { --mdc-icon-size: 24px; }
+  .controller strong { font-size: 0.78rem; }
+  .controller em {
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .battery { --node-color: var(--flow-battery); left: calc(50% - 52px); bottom: 4px; width: 104px; min-height: 78px; border-radius: 22px; }
+  .ev { --node-color: var(--flow-ev); left: 35px; bottom: 12px; }
+  .heat { --node-color: var(--flow-heat); right: 35px; bottom: 12px; }
 
   .battery-visual {
     position: relative;
@@ -232,7 +277,7 @@ export const styles = css`
     align-items: center;
     gap: 1px;
     width: 24px;
-    height: 40px;
+    height: 34px;
   }
 
   .battery-tip {
@@ -248,7 +293,7 @@ export const styles = css`
   .battery-shell {
     position: relative;
     width: 24px;
-    height: 36px;
+    height: 30px;
     border: 2px solid rgba(226, 232, 240, 0.68);
     border-radius: 5px;
     overflow: hidden;
@@ -363,6 +408,11 @@ export const styles = css`
     border: 1px solid rgba(148, 163, 184, 0.14);
     border-radius: 11px;
     background: rgba(2, 6, 23, 0.28);
+  }
+
+  .drawer-body .panel,
+  .drawer-body .panel.wide {
+    grid-column: auto;
   }
 
   .budget-line {
@@ -549,16 +599,23 @@ export const styles = css`
     }
 
     .flow-hero {
-      height: 340px;
+      height: 318px;
     }
 
-    .hero-node {
-      width: 78px;
-      min-height: 68px;
-      padding: 7px;
+    .sun-node {
+      width: 72px;
+      min-height: 60px;
+      padding: 6px;
     }
 
-    .hero-node.primary {
+    .controller {
+      left: calc(50% - 48px);
+      width: 96px;
+      min-height: 80px;
+    }
+
+    .battery {
+      left: calc(50% - 48px);
       width: 96px;
     }
 
@@ -572,7 +629,9 @@ export const styles = css`
       grid-column: span 12;
     }
 
-    .heat { left: 16px; }
-    .ev { right: 16px; }
+    .grid { left: 2px; }
+    .load { right: 2px; }
+    .heat { right: 10px; }
+    .ev { left: 10px; }
   }
 `;
