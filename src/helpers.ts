@@ -95,7 +95,7 @@ export const booleanTone = (value: boolean | undefined, positiveWhenOn = true): 
 };
 
 export const chip = ({ label, value, tone, entityId }: Chip): TemplateResult => html`
-  <span class="chip ${tone}" title=${entityId ?? ""}>
+  <span class="chip ${tone}" title=${entityId ?? ""} data-entity-id=${entityId ?? ""}>
     <span>${label}</span>
     <strong>${value}</strong>
   </span>

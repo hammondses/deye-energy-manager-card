@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.3.1";
+const CARD_VERSION = "0.3.2";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -40,7 +40,7 @@ export class DeyeEnergyManagerCard extends LitElement {
       name: "Deye Energy Manager",
       compact: true,
       show_details: false,
-      show_controls: false,
+      show_controls: true,
       show_power_flow: true,
       show_debug_reasons: false,
       animate_flows: true,
@@ -74,7 +74,7 @@ export class DeyeEnergyManagerCard extends LitElement {
   private renderFull(missingRequired: EntityKey[]): TemplateResult {
     return html`
       <ha-card>
-        <div class="card full-card">
+        <div class="card full-card" @click=${this.handleEntityClick}>
           ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
           ${this.renderHeader()}
           <div class="grid">
@@ -97,7 +97,7 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     return html`
       <ha-card>
-        <div class="card compact-card ${this.config?.animate_flows === false ? "no-animate" : "animate"}">
+        <div class="card compact-card ${this.config?.animate_flows === false ? "no-animate" : "animate"}" @click=${this.handleEntityClick}>
           ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
           ${this.renderCompactHeader(tone)}
           ${this.renderActionSummary(flow)}
@@ -145,9 +145,9 @@ export class DeyeEnergyManagerCard extends LitElement {
           <span class="status-dot"></span>
         </div>
         <div class="chips">
-          ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey" })}
-          ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue" })}
-          ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey" })}
+          ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey", entityId: this.entities?.tariffWindow })}
+          ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue", entityId: this.entities?.solarPhase })}
+          ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey", entityId: this.entities?.activePlan })}
         </div>
         ${reason ? html`<div class="reason">${reason}</div>` : nothing}
       </section>
@@ -175,10 +175,10 @@ export class DeyeEnergyManagerCard extends LitElement {
             <span class="status-badge ${budgetTone(budget)}">Budget ${formatEnergy(budget)}</span>
           </div>
         </div>
-        <div class="hero-context">
-          ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey" })}
-          ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue" })}
-          ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey" })}
+          <div class="hero-context">
+          ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey", entityId: this.entities?.tariffWindow })}
+          ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue", entityId: this.entities?.solarPhase })}
+          ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey", entityId: this.entities?.activePlan })}
         </div>
       </section>
     `;
@@ -187,7 +187,7 @@ export class DeyeEnergyManagerCard extends LitElement {
   private renderActionSummary(flow: FlowState): TemplateResult {
     const summary = this.activeSummary(flow);
     return html`
-      <section class=${`action-summary ${summary.tone}`}>
+      <section class=${`action-summary ${summary.tone}`} data-entity-id=${this.entities?.expectedAction ?? this.entities?.thermalExpectedAction ?? ""}>
         <div class="action-icon"><ha-icon icon=${summary.icon}></ha-icon></div>
         <div class="action-copy">
           <span>Active now</span>
@@ -214,6 +214,9 @@ export class DeyeEnergyManagerCard extends LitElement {
     const paidAvoid = binaryOn(this.entity("paidGridAvoidanceRequired"));
     const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
     const budget = numberState(this.entity("discretionaryEnergyBudget"));
+    const soc = this.batterySoc();
+    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const need = numberState(this.entity("batteryKwhNeededToTarget"));
 
     if (evCharging && evBypass) {
       return {
@@ -266,10 +269,11 @@ export class DeyeEnergyManagerCard extends LitElement {
     }
 
     if (flow.batteryCharging) {
+      const targetDetail = `SOC ${formatPercent(soc)} to target ${formatPercent(target)}${need !== undefined ? `, ${formatEnergy(need)} needed` : ""}`;
       return {
         title: "Battery top-up active",
-        detail: `Battery is charging at ${formatPower(flow.batteryCharge)} toward the morning target.`,
-        next: budget !== undefined && budget < 0 ? "Stop if budget is exhausted" : "Stop at target SOC",
+        detail: `Charging at ${formatPower(flow.batteryCharge)}. ${targetDetail}.`,
+        next: budget !== undefined && budget < 0 ? "Stop if budget is exhausted" : `Stop at ${formatPercent(target)}`,
         tone: "green",
         icon: "mdi:battery-charging",
       };
@@ -359,13 +363,13 @@ export class DeyeEnergyManagerCard extends LitElement {
     return html`
       <section class=${`flow-hero sunsynk ${tone}`}>
         ${this.renderHeroFlowLines(flow)}
-        ${this.powerNode("Solar", "mdi:solar-power-variant", formatPower(flow.pvPower), undefined, "solar", flow.pvActive)}
-        ${this.powerNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), undefined, "grid", flow.gridImporting || flow.gridExporting)}
+        ${this.powerNode("Solar", "mdi:solar-power-variant", formatPower(flow.pvPower), undefined, "solar", flow.pvActive, this.entities?.pvPower)}
+        ${this.powerNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), undefined, "grid", flow.gridImporting || flow.gridExporting, this.entities?.gridPower)}
         ${this.controllerNode(policy, expected, tone)}
-        ${this.powerNode("Load", "mdi:home-lightning-bolt", formatPower(flow.housePower), undefined, "load", (flow.housePower ?? 0) > 100)}
+        ${this.powerNode("Load", "mdi:home-lightning-bolt", formatPower(flow.housePower), undefined, "load", (flow.housePower ?? 0) > 100, this.entities?.housePower)}
         ${this.batteryNode(soc, target, batteryState)}
-        ${this.powerNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", undefined, "ev satellite", flow.evActive)}
-        ${this.powerNode("Heat/Floor", "mdi:heat-pump", heatLabel, undefined, "heat satellite", flow.thermalActive || underfloorAllowed === false)}
+        ${this.powerNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", undefined, "ev satellite", flow.evActive, this.entities?.evDetectedPower)}
+        ${this.powerNode("Heat/Floor", "mdi:heat-pump", heatLabel, undefined, "heat satellite", flow.thermalActive || underfloorAllowed === false, this.entities?.activeThermalLoads)}
       </section>
     `;
   }
@@ -404,9 +408,10 @@ export class DeyeEnergyManagerCard extends LitElement {
     subvalue: string | undefined,
     className: string,
     active: boolean,
+    entityId?: string,
   ): TemplateResult {
     return html`
-      <div class=${`sun-node ${className} ${active ? "active" : ""}`}>
+      <div class=${`sun-node ${className} ${active ? "active" : ""}`} data-entity-id=${entityId ?? ""}>
         <ha-icon icon=${icon}></ha-icon>
         <span>${label}</span>
         <strong>${value}</strong>
@@ -417,7 +422,7 @@ export class DeyeEnergyManagerCard extends LitElement {
 
   private controllerNode(policy?: string, expected?: string, tone: StatusTone = "grey"): TemplateResult {
     return html`
-      <div class=${`sun-node controller active ${tone}`}>
+      <div class=${`sun-node controller active ${tone}`} data-entity-id=${this.entities?.thermalPolicyState ?? this.entities?.expectedAction ?? ""}>
         <ha-icon icon="mdi:lightning-bolt-circle"></ha-icon>
         <span>Controller</span>
         <strong>${formatLabel(policy)}</strong>
@@ -430,7 +435,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     const fill = Math.max(0, Math.min(100, soc ?? 0));
     const marker = Math.max(0, Math.min(100, target ?? 0));
     return html`
-      <div class="sun-node battery active">
+      <div class="sun-node battery active" data-entity-id=${this.entities?.rawSoc ?? ""}>
         <div class="battery-visual" style=${`--soc:${fill}%;--target:${marker}%;`}>
           <div class="battery-tip"></div>
           <div class="battery-shell">
@@ -456,17 +461,17 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     return html`
       <section class="metric-strip">
-        ${this.metricPill("SOC", `${formatPercent(soc)} → ${formatPercent(target)}`, source === "last_known_good" ? "amber" : "blue", source === "last_known_good" ? `SOC cached${age !== undefined ? ` · ${Math.round(age)}m` : ""}` : undefined)}
-        ${this.metricPill("Need", formatEnergy(need), need !== undefined && need > 0 ? "amber" : "green", reachable === false ? "Target not reachable" : undefined)}
-        ${this.metricPill("Solar left", formatEnergy(solar), "blue")}
-        ${this.metricPill("Budget", formatEnergy(budget), budgetTone(budget))}
+        ${this.metricPill("SOC", `${formatPercent(soc)} to ${formatPercent(target)}`, source === "last_known_good" ? "amber" : "blue", source === "last_known_good" ? `SOC cached${age !== undefined ? ` · ${Math.round(age)}m` : ""}` : undefined, this.entities?.rawSoc)}
+        ${this.metricPill("Need", formatEnergy(need), need !== undefined && need > 0 ? "amber" : "green", reachable === false ? "Target not reachable" : undefined, this.entities?.batteryKwhNeededToTarget)}
+        ${this.metricPill("Solar left", formatEnergy(solar), "blue", undefined, this.entities?.remainingSolarBudget)}
+        ${this.metricPill("Budget", formatEnergy(budget), budgetTone(budget), undefined, this.entities?.discretionaryEnergyBudget)}
       </section>
     `;
   }
 
-  private metricPill(label: string, value: string, tone: StatusTone, note?: string): TemplateResult {
+  private metricPill(label: string, value: string, tone: StatusTone, note?: string, entityId?: string): TemplateResult {
     return html`
-      <div class=${`metric-pill ${tone}`}>
+      <div class=${`metric-pill ${tone}`} data-entity-id=${entityId ?? ""}>
         <span>${label}</span>
         <strong>${value}</strong>
         ${note ? html`<em>${note}</em>` : nothing}
@@ -493,7 +498,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     return gates.map(([key, label, onText, offText, positiveWhenOn]) => {
       const value = binaryOn(this.entity(key));
       if (value === undefined) return nothing;
-      return chip({ label, value: value ? onText : offText, tone: booleanTone(value, positiveWhenOn) });
+      return chip({ label, value: value ? onText : offText, tone: booleanTone(value, positiveWhenOn), entityId: this.entities?.[key] });
     });
   }
 
@@ -815,7 +820,6 @@ export class DeyeEnergyManagerCard extends LitElement {
   }
 
   private renderControls(): TemplateResult {
-    const open = this.controlsOpen;
     const switches: Array<[EntityKey, string]> = [
       ["thermalControlEnabled", "Thermal control"],
       ["paidTimeGridAvoidanceEnabled", "Paid grid avoidance"],
@@ -833,15 +837,19 @@ export class DeyeEnergyManagerCard extends LitElement {
     ];
 
     return html`
-      <section class="drawer controls-drawer">
-        <details ?open=${open} @toggle=${this.handleControlsToggle}>
-          <summary>Controls</summary>
-          ${open ? html`
-            <div class="control-list drawer-body">
-              ${switches.map(([key, label]) => this.renderSwitchControl(key, label))}
-              ${buttons.map(([key, label, danger]) => this.renderButtonControl(key, label, danger))}
-            </div>
-          ` : nothing}
+      <section class="controls-panel">
+        <div class="panel-header">
+          <h3>Controls</h3>
+          <span class="small">Tap a row for entity details</span>
+        </div>
+        <div class="control-grid">
+          ${switches.map(([key, label]) => this.renderSwitchControl(key, label))}
+        </div>
+        <details class="action-drawer">
+          <summary>Actions</summary>
+          <div class="control-list action-list">
+            ${buttons.map(([key, label, danger]) => this.renderButtonControl(key, label, danger))}
+          </div>
         </details>
       </section>
     `;
@@ -856,12 +864,19 @@ export class DeyeEnergyManagerCard extends LitElement {
     if (!entity || !this.hass) return nothing;
     const on = entity.state === "on";
     return html`
-      <div class="control-row">
+      <div class="control-row" data-entity-id=${entity.entity_id}>
         <div>
           <strong>${label}</strong>
-          <div class="small">${entity.entity_id}</div>
+          <div class="small">${on ? "On" : "Off"}</div>
         </div>
-        <button @click=${() => this.handleService(entity.entity_id)}>${on ? "Turn off" : "Turn on"}</button>
+        <button
+          class=${`switch-button ${on ? "on" : ""}`}
+          aria-label=${`${on ? "Turn off" : "Turn on"} ${label}`}
+          @click=${(event: Event) => this.handleServiceClick(event, entity.entity_id)}
+        >
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span>${on ? "On" : "Off"}</span>
+        </button>
       </div>
     `;
   }
@@ -870,20 +885,39 @@ export class DeyeEnergyManagerCard extends LitElement {
     const entity = this.entity(key);
     if (!entity || !this.hass) return nothing;
     return html`
-      <div class="control-row">
+      <div class="control-row" data-entity-id=${entity.entity_id}>
         <div>
           <strong>${label}</strong>
           <div class="small">${entity.entity_id}</div>
         </div>
-        <button class=${danger ? "danger" : ""} @click=${() => this.handleService(entity.entity_id, danger)}>${danger ? "Confirm" : "Run"}</button>
+        <button class=${danger ? "danger" : ""} @click=${(event: Event) => this.handleServiceClick(event, entity.entity_id, danger)}>${danger ? "Confirm" : "Run"}</button>
       </div>
     `;
+  }
+
+  private handleServiceClick(event: Event, entityId: string, confirmFirst = false): void {
+    event.preventDefault();
+    event.stopPropagation();
+    void this.handleService(entityId, confirmFirst);
   }
 
   private async handleService(entityId: string, confirmFirst = false): Promise<void> {
     if (!this.hass) return;
     if (confirmFirst && !window.confirm(`Run ${entityId}?`)) return;
     await callEntityService(this.hass, entityId);
+  }
+
+  private handleEntityClick(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    if (!target || target.closest("button, summary")) return;
+    const element = target.closest("[data-entity-id]") as HTMLElement | null;
+    const entityId = element?.dataset.entityId;
+    if (!entityId) return;
+    this.dispatchEvent(new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    }));
   }
 }
 

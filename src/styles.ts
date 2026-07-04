@@ -3,8 +3,8 @@ import { css } from "lit";
 export const styles = css`
   :host {
     display: block;
-    --dem-card-bg: var(--ha-card-background, #0b1220);
-    --dem-panel-bg: color-mix(in srgb, var(--dem-card-bg) 82%, white);
+    --dem-card-bg: transparent;
+    --dem-panel-bg: transparent;
     --dem-border: rgba(148, 163, 184, 0.2);
     --dem-accent-good: #22c55e;
     --dem-accent-warn: #f59e0b;
@@ -34,13 +34,11 @@ export const styles = css`
   }
 
   ha-card {
-    overflow: hidden;
-    background:
-      radial-gradient(circle at 50% 8%, rgba(56, 189, 248, 0.12), transparent 34%),
-      linear-gradient(180deg, color-mix(in srgb, var(--dem-card-bg) 92%, white), var(--dem-card-bg));
+    overflow: visible;
+    background: transparent;
     color: var(--dem-text-main);
-    border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    border: 0;
+    box-shadow: none;
   }
 
   .card {
@@ -103,7 +101,8 @@ export const styles = css`
 
   .hero-title h2,
   .hero-subtitle {
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .header-badges {
@@ -121,7 +120,7 @@ export const styles = css`
     font-weight: 800;
     color: var(--dem-text-main);
     border: 1px solid color-mix(in srgb, var(--chip-tone) 55%, transparent);
-    background: color-mix(in srgb, var(--chip-tone) 20%, transparent);
+    background: transparent;
   }
 
   .hero-context {
@@ -135,7 +134,6 @@ export const styles = css`
     height: 12px;
     border-radius: 999px;
     background: var(--tone);
-    box-shadow: 0 0 16px var(--tone);
     margin-top: 4px;
     flex: 0 0 auto;
   }
@@ -157,10 +155,12 @@ export const styles = css`
     border: 1px solid color-mix(in srgb, var(--chip-tone) 44%, transparent);
     border-left: 5px solid var(--chip-tone);
     border-radius: 14px;
-    background:
-      linear-gradient(90deg, color-mix(in srgb, var(--chip-tone) 18%, transparent), transparent 62%),
-      rgba(15, 23, 42, 0.58);
+    background: transparent;
     min-width: 0;
+  }
+
+  [data-entity-id]:not([data-entity-id=""]) {
+    cursor: pointer;
   }
 
   .action-icon {
@@ -169,7 +169,7 @@ export const styles = css`
     width: 38px;
     height: 38px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--chip-tone) 20%, transparent);
+    background: transparent;
     color: var(--chip-tone);
   }
 
@@ -194,7 +194,8 @@ export const styles = css`
   .action-next strong {
     display: block;
     line-height: 1.15;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .action-copy p {
@@ -202,7 +203,8 @@ export const styles = css`
     color: var(--dem-text-muted);
     font-size: 0.78rem;
     line-height: 1.28;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .action-next {
@@ -217,9 +219,7 @@ export const styles = css`
     position: relative;
     min-height: 292px;
     overflow: visible;
-    background:
-      radial-gradient(circle at 50% 50%, rgba(148, 163, 184, 0.12), transparent 35%),
-      linear-gradient(180deg, rgba(15, 23, 42, 0.3), rgba(2, 6, 23, 0.2));
+    background: transparent;
     border-radius: 14px;
   }
 
@@ -292,20 +292,14 @@ export const styles = css`
     box-sizing: border-box;
     border-radius: 999px;
     border: 1px solid rgba(148, 163, 184, 0.18);
-    background:
-      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.08), transparent 34%),
-      rgba(15, 23, 42, 0.9);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 22px rgba(0, 0, 0, 0.28);
+    background: transparent;
     text-align: center;
     min-width: 0;
   }
 
   .sun-node.active {
     border-color: color-mix(in srgb, var(--node-color, var(--dem-accent-info)) 42%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 0 18px color-mix(in srgb, var(--node-color, var(--dem-accent-info)) 20%, transparent),
-      0 12px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: none;
   }
 
   .sun-node ha-icon {
@@ -320,12 +314,16 @@ export const styles = css`
     font-style: normal;
     line-height: 1.12;
     max-width: 100%;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sun-node strong {
     max-width: 100%;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.77rem;
     line-height: 1.15;
   }
@@ -341,15 +339,15 @@ export const styles = css`
     width: clamp(104px, 28%, 126px);
     min-height: 86px;
     border-radius: 24px;
-    background:
-      radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--tone) 22%, transparent), transparent 36%),
-      linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(2, 6, 23, 0.94));
+    background: transparent;
   }
   .controller ha-icon { --mdc-icon-size: 24px; }
   .controller strong { font-size: 0.78rem; }
   .controller em {
     max-width: 92px;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .flow-hero .battery { --node-color: var(--flow-battery); left: 50%; bottom: 6px; transform: translateX(-50%); width: clamp(104px, 28%, 126px); min-height: 78px; border-radius: 22px; }
   .flow-hero .ev { --node-color: var(--flow-ev); left: 12%; bottom: 14px; }
@@ -391,7 +389,7 @@ export const styles = css`
     height: calc(var(--soc) - 4px);
     min-height: 2px;
     border-radius: 3px;
-    background: linear-gradient(180deg, var(--dem-accent-bright), var(--dem-accent-good));
+    background: var(--dem-accent-good);
   }
 
   .battery-target {
@@ -413,7 +411,7 @@ export const styles = css`
     padding: 8px 9px;
     border-radius: 12px;
     border: 1px solid color-mix(in srgb, var(--chip-tone) 45%, transparent);
-    background: color-mix(in srgb, var(--chip-tone) 12%, rgba(15, 23, 42, 0.72));
+    background: transparent;
   }
 
   .metric-pill span,
@@ -422,14 +420,18 @@ export const styles = css`
     color: var(--dem-text-muted);
     font-size: 0.69rem;
     font-style: normal;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .metric-pill strong {
     display: block;
     margin-top: 2px;
     font-size: 0.86rem;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .compact-decisions,
@@ -447,12 +449,14 @@ export const styles = css`
     padding: 4px 8px;
     border: 1px solid color-mix(in srgb, var(--chip-tone) 48%, transparent);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--chip-tone) 14%, transparent);
+    background: transparent;
     color: var(--dem-text-main);
     font-size: 0.72rem;
     line-height: 1.2;
     max-width: 100%;
-    overflow-wrap: anywhere;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .chip span {
@@ -462,7 +466,7 @@ export const styles = css`
   .drawer {
     border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 13px;
-    background: rgba(15, 23, 42, 0.42);
+    background: transparent;
   }
 
   details {
@@ -489,7 +493,7 @@ export const styles = css`
     padding: 9px;
     border: 1px solid rgba(148, 163, 184, 0.14);
     border-radius: 11px;
-    background: rgba(2, 6, 23, 0.28);
+    background: transparent;
   }
 
   .drawer-body .panel,
@@ -513,7 +517,7 @@ export const styles = css`
   .panel {
     grid-column: span 6;
     padding: 12px;
-    background: var(--dem-panel-bg);
+    background: transparent;
     border: 1px solid var(--dem-border);
     border-radius: 14px;
     min-width: 0;
@@ -537,7 +541,7 @@ export const styles = css`
     gap: 8px;
     padding: 14px;
     border-radius: 14px;
-    background: rgba(15, 23, 42, 0.72);
+    background: transparent;
     border: 1px solid var(--dem-border);
   }
 
@@ -577,7 +581,7 @@ export const styles = css`
     min-height: 70px;
     border: 1px solid var(--dem-border);
     border-radius: 13px;
-    background: rgba(15, 23, 42, 0.86);
+    background: transparent;
     display: grid;
     align-content: center;
     justify-items: center;
@@ -598,7 +602,8 @@ export const styles = css`
 
   .node-value {
     font-weight: 700;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .value-row {
@@ -619,13 +624,32 @@ export const styles = css`
 
   .value-row strong {
     text-align: right;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .load-list,
-  .control-list {
+  .control-list,
+  .control-grid {
     display: grid;
     gap: 7px;
+  }
+
+  .controls-panel {
+    display: grid;
+    gap: 9px;
+    padding: 10px;
+    border: 1px solid var(--dem-border);
+    border-radius: 14px;
+    background: transparent;
+  }
+
+  .controls-panel .panel-header {
+    margin-bottom: 0;
+  }
+
+  .control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .load-row,
@@ -637,7 +661,26 @@ export const styles = css`
     padding: 8px 9px;
     border: 1px solid rgba(148, 163, 184, 0.14);
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.46);
+    background: transparent;
+  }
+
+  .control-row strong {
+    display: block;
+    font-size: 0.84rem;
+    line-height: 1.2;
+  }
+
+  .action-drawer {
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+    padding-top: 2px;
+  }
+
+  .action-drawer summary {
+    padding: 8px 0;
+  }
+
+  .action-list {
+    padding-top: 4px;
   }
 
   .load-meta {
@@ -647,12 +690,13 @@ export const styles = css`
   .load-meta strong,
   .load-meta span {
     display: block;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   button {
     border: 1px solid var(--dem-border);
-    background: rgba(30, 41, 59, 0.9);
+    background: transparent;
     color: var(--dem-text-main);
     border-radius: 999px;
     padding: 7px 11px;
@@ -666,14 +710,53 @@ export const styles = css`
 
   button.danger {
     border-color: color-mix(in srgb, var(--dem-accent-bad) 55%, transparent);
-    background: color-mix(in srgb, var(--dem-accent-bad) 18%, rgba(30, 41, 59, 0.9));
+    background: transparent;
+  }
+
+  .switch-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 72px;
+    justify-content: center;
+  }
+
+  .switch-track {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--dem-border);
+    box-sizing: border-box;
+  }
+
+  .switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--dem-text-muted);
+    transition: transform 0.16s ease, background 0.16s ease;
+  }
+
+  .switch-button.on {
+    border-color: color-mix(in srgb, var(--dem-accent-good) 62%, transparent);
+    color: var(--dem-text-main);
+  }
+
+  .switch-button.on .switch-thumb {
+    transform: translateX(14px);
+    background: var(--dem-accent-good);
   }
 
   .setup-warning {
     padding: 10px;
     border: 1px solid color-mix(in srgb, var(--dem-accent-warn) 55%, transparent);
     border-radius: 12px;
-    background: color-mix(in srgb, var(--dem-accent-warn) 14%, transparent);
+    background: transparent;
   }
 
   @media (max-width: 520px) {
@@ -725,7 +808,8 @@ export const styles = css`
     }
 
     .grid,
-    .metric-strip {
+    .metric-strip,
+    .control-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 

@@ -17,7 +17,7 @@ This pass focuses on correct structure, entity mapping, responsive layout, and c
 - Compact battery and energy budget strip with SOC target, need, solar left, and discretionary budget.
 - One or two rows of high-priority decision chips.
 - Collapsed details drawer for budget calculation, full gate matrix, reasons, SOC source, and managed loads.
-- Optional collapsed controls drawer for safe switches and guarded action buttons.
+- Visible quick controls for safe switches, with guarded action buttons behind an actions drawer.
 - Prefix-based defaults plus per-entity overrides.
 - Graceful handling for optional missing entities.
 
@@ -86,7 +86,7 @@ entities:
 
 `entity_prefix` defaults to `garage_deye_energy_manager`.
 `compact` defaults to `true`. Set `compact: false` to use the original Pass 1 expanded diagnostic layout.
-Controls are hidden unless `show_controls: true`.
+Controls are shown by default. Set `show_controls: false` to hide them.
 
 ## Core Entities
 
