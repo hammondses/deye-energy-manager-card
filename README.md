@@ -12,7 +12,7 @@ This pass focuses on correct structure, entity mapping, responsive layout, and c
 
 ## Features
 
-- Compact commercial-style header with policy state, expected action, budget, and reason.
+- Compact header plus active-action summary showing what the controller is doing now, why, and what condition changes next.
 - Sunsynk-style central-controller power-flow hero for PV, grid, load, battery, EV, and thermal loads.
 - Compact battery and energy budget strip with SOC target, need, solar left, and discretionary budget.
 - One or two rows of high-priority decision chips.

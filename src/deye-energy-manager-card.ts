@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "0.3.1";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -50,7 +50,13 @@ export class DeyeEnergyManagerCard extends LitElement {
   }
 
   public getCardSize(): number {
-    return this.config?.compact ? 8 : 12;
+    return this.config?.compact ? 7 : 12;
+  }
+
+  public getGridOptions(): Record<string, number> {
+    return this.config?.compact
+      ? { rows: 7, columns: 12, min_rows: 5, min_columns: 6 }
+      : { rows: 12, columns: 12, min_rows: 8, min_columns: 6 };
   }
 
   protected override render(): TemplateResult {
@@ -94,6 +100,7 @@ export class DeyeEnergyManagerCard extends LitElement {
         <div class="card compact-card ${this.config?.animate_flows === false ? "no-animate" : "animate"}">
           ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
           ${this.renderCompactHeader(tone)}
+          ${this.renderActionSummary(flow)}
           ${this.config?.show_power_flow === false ? nothing : this.renderFlowHero(flow)}
           ${this.renderMetricStrip()}
           ${this.renderCompactDecisionChips()}
@@ -168,11 +175,123 @@ export class DeyeEnergyManagerCard extends LitElement {
             <span class="status-badge ${budgetTone(budget)}">Budget ${formatEnergy(budget)}</span>
           </div>
         </div>
-        <div class="hero-reason">
-          ${formatLabel(policy)} · ${reachable === false ? "Target not reachable" : "Target status unknown"} · ${formatLabel(expected)}
+        <div class="hero-context">
+          ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey" })}
+          ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue" })}
+          ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey" })}
         </div>
       </section>
     `;
+  }
+
+  private renderActionSummary(flow: FlowState): TemplateResult {
+    const summary = this.activeSummary(flow);
+    return html`
+      <section class=${`action-summary ${summary.tone}`}>
+        <div class="action-icon"><ha-icon icon=${summary.icon}></ha-icon></div>
+        <div class="action-copy">
+          <span>Active now</span>
+          <strong>${summary.title}</strong>
+          <p>${summary.detail}</p>
+        </div>
+        <div class="action-next">
+          <span>Next</span>
+          <strong>${summary.next}</strong>
+        </div>
+      </section>
+    `;
+  }
+
+  private activeSummary(flow: FlowState): { title: string; detail: string; next: string; tone: StatusTone; icon: string } {
+    const policy = cleanState(this.entity("thermalPolicyState"));
+    const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
+    const reason = cleanState(this.entity("evDecisionReason"))
+      ?? cleanState(this.entity("energyBudgetReason"))
+      ?? cleanState(this.entity("thermalActionReason"));
+    const evCharging = binaryOn(this.entity("evChargingDetected")) ?? flow.evActive;
+    const evBypass = binaryOn(this.entity("evGridBypassRequired"));
+    const evLatch = binaryOn(this.entity("evLatchActive"));
+    const paidAvoid = binaryOn(this.entity("paidGridAvoidanceRequired"));
+    const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
+    const budget = numberState(this.entity("discretionaryEnergyBudget"));
+
+    if (evCharging && evBypass) {
+      return {
+        title: "EV cheap-grid bypass",
+        detail: "Cheap grid is feeding the EV and house. Battery grid top-up is paused while the EV is active.",
+        next: evLatch ? "Resume after EV stop and latch clear" : "Resume when EV stops",
+        tone: "blue",
+        icon: "mdi:ev-station",
+      };
+    }
+
+    if (policy === "emergency_shed") {
+      return {
+        title: "Emergency load shed",
+        detail: reason ?? "Battery reserve protection is active and managed loads are being removed.",
+        next: "Restore after reserve recovers",
+        tone: "red",
+        icon: "mdi:alert-octagon",
+      };
+    }
+
+    if (policy === "shed") {
+      return {
+        title: "Shedding managed loads",
+        detail: reason ?? "The controller is reducing discretionary load to protect the energy plan.",
+        next: "Normalise when budget improves",
+        tone: "orange",
+        icon: "mdi:power-plug-off",
+      };
+    }
+
+    if (policy === "solar_soak_full_send" || policy === "solar_soak_allowed") {
+      return {
+        title: policy === "solar_soak_full_send" ? "Full solar soak" : "Solar soak allowed",
+        detail: reason ?? "Surplus solar budget is available for managed loads.",
+        next: reachable === false ? "Re-check target reachability" : "Hold until budget changes",
+        tone: policy === "solar_soak_full_send" ? "bright-green" : "green",
+        icon: "mdi:weather-sunny",
+      };
+    }
+
+    if (paidAvoid) {
+      return {
+        title: "Avoiding paid grid import",
+        detail: "Active reserve is lowered so the battery can serve house load instead of preserving charge.",
+        next: "Return reserve at cheap grid or solar window",
+        tone: "amber",
+        icon: "mdi:transmission-tower-off",
+      };
+    }
+
+    if (flow.batteryCharging) {
+      return {
+        title: "Battery top-up active",
+        detail: `Battery is charging at ${formatPower(flow.batteryCharge)} toward the morning target.`,
+        next: budget !== undefined && budget < 0 ? "Stop if budget is exhausted" : "Stop at target SOC",
+        tone: "green",
+        icon: "mdi:battery-charging",
+      };
+    }
+
+    if (flow.batteryDischarging) {
+      return {
+        title: "Battery serving load",
+        detail: `Battery is supplying ${formatPower(flow.batteryDischarge)} to reduce grid import.`,
+        next: "Import only when reserve requires it",
+        tone: "amber",
+        icon: "mdi:battery-arrow-down",
+      };
+    }
+
+    return {
+      title: formatLabel(expected),
+      detail: reason ?? "No high-priority override is active.",
+      next: "Waiting for tariff, solar, SOC, or load change",
+      tone: statusToneForPolicy(policy),
+      icon: "mdi:lightning-bolt-circle",
+    };
   }
 
   private statusBadgeLabel(policy?: string): string {

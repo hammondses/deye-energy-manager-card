@@ -47,10 +47,12 @@ export const styles = css`
     display: grid;
     gap: 10px;
     padding: 12px;
+    min-width: 0;
   }
 
   .compact-card {
-    max-width: 680px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   h2,
@@ -74,7 +76,7 @@ export const styles = css`
   .subtitle,
   .reason,
   .hero-subtitle,
-  .hero-reason {
+  .hero-context {
     color: var(--dem-text-muted);
     font-size: 0.78rem;
     line-height: 1.25;
@@ -82,8 +84,8 @@ export const styles = css`
 
   .hero-header {
     display: grid;
-    gap: 3px;
-    padding: 9px 10px;
+    gap: 8px;
+    padding: 10px;
     border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   }
 
@@ -91,7 +93,17 @@ export const styles = css`
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    align-items: center;
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .hero-title > div:first-child {
+    min-width: 0;
+  }
+
+  .hero-title h2,
+  .hero-subtitle {
+    overflow-wrap: anywhere;
   }
 
   .header-badges {
@@ -112,6 +124,12 @@ export const styles = css`
     background: color-mix(in srgb, var(--chip-tone) 20%, transparent);
   }
 
+  .hero-context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .status-dot {
     width: 12px;
     height: 12px;
@@ -130,10 +148,75 @@ export const styles = css`
   .red { --chip-tone: var(--dem-red); --tone: var(--dem-red); }
   .grey { --chip-tone: var(--dem-grey); --tone: var(--dem-grey); }
 
+  .action-summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(118px, 0.45fr);
+    gap: 10px;
+    align-items: center;
+    padding: 11px;
+    border: 1px solid color-mix(in srgb, var(--chip-tone) 44%, transparent);
+    border-left: 5px solid var(--chip-tone);
+    border-radius: 14px;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--chip-tone) 18%, transparent), transparent 62%),
+      rgba(15, 23, 42, 0.58);
+    min-width: 0;
+  }
+
+  .action-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--chip-tone) 20%, transparent);
+    color: var(--chip-tone);
+  }
+
+  .action-icon ha-icon {
+    --mdc-icon-size: 24px;
+  }
+
+  .action-copy,
+  .action-next {
+    min-width: 0;
+  }
+
+  .action-copy span,
+  .action-next span {
+    display: block;
+    color: var(--dem-text-muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+  }
+
+  .action-copy strong,
+  .action-next strong {
+    display: block;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .action-copy p {
+    margin: 3px 0 0;
+    color: var(--dem-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+  }
+
+  .action-next {
+    align-self: stretch;
+    display: grid;
+    align-content: center;
+    padding-left: 10px;
+    border-left: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
   .flow-hero {
     position: relative;
-    height: 292px;
-    overflow: hidden;
+    min-height: 292px;
+    overflow: visible;
     background:
       radial-gradient(circle at 50% 50%, rgba(148, 163, 184, 0.12), transparent 35%),
       linear-gradient(180deg, rgba(15, 23, 42, 0.3), rgba(2, 6, 23, 0.2));
@@ -199,7 +282,7 @@ export const styles = css`
 
   .sun-node {
     position: absolute;
-    width: 78px;
+    width: clamp(72px, 18%, 92px);
     min-height: 64px;
     display: grid;
     justify-items: center;
@@ -214,6 +297,7 @@ export const styles = css`
       rgba(15, 23, 42, 0.9);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 22px rgba(0, 0, 0, 0.28);
     text-align: center;
+    min-width: 0;
   }
 
   .sun-node.active {
@@ -234,25 +318,27 @@ export const styles = css`
     color: var(--dem-text-muted);
     font-size: 0.68rem;
     font-style: normal;
+    line-height: 1.12;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .sun-node strong {
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-size: 0.77rem;
     line-height: 1.15;
   }
 
-  .solar { --node-color: var(--flow-solar); left: calc(50% - 39px); top: 5px; }
-  .grid { --node-color: var(--flow-grid); left: 8px; top: calc(50% - 32px); }
-  .load { --node-color: var(--flow-load); right: 8px; top: calc(50% - 32px); }
+  .flow-hero .solar { --node-color: var(--flow-solar); left: 50%; top: 6px; transform: translateX(-50%); }
+  .flow-hero .grid { --node-color: var(--flow-grid); left: 8px; top: 50%; transform: translateY(-50%); }
+  .flow-hero .load { --node-color: var(--flow-load); right: 8px; top: 50%; transform: translateY(-50%); }
   .controller {
     --node-color: var(--tone);
-    left: calc(50% - 53px);
-    top: calc(50% - 43px);
-    width: 106px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(104px, 28%, 126px);
     min-height: 86px;
     border-radius: 24px;
     background:
@@ -263,13 +349,11 @@ export const styles = css`
   .controller strong { font-size: 0.78rem; }
   .controller em {
     max-width: 92px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
-  .battery { --node-color: var(--flow-battery); left: calc(50% - 52px); bottom: 4px; width: 104px; min-height: 78px; border-radius: 22px; }
-  .ev { --node-color: var(--flow-ev); left: 35px; bottom: 12px; }
-  .heat { --node-color: var(--flow-heat); right: 35px; bottom: 12px; }
+  .flow-hero .battery { --node-color: var(--flow-battery); left: 50%; bottom: 6px; transform: translateX(-50%); width: clamp(104px, 28%, 126px); min-height: 78px; border-radius: 22px; }
+  .flow-hero .ev { --node-color: var(--flow-ev); left: 12%; bottom: 14px; }
+  .flow-hero .heat { --node-color: var(--flow-heat); right: 12%; bottom: 14px; }
 
   .battery-visual {
     position: relative;
@@ -338,18 +422,14 @@ export const styles = css`
     color: var(--dem-text-muted);
     font-size: 0.69rem;
     font-style: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   .metric-pill strong {
     display: block;
     margin-top: 2px;
     font-size: 0.86rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   .compact-decisions,
@@ -371,6 +451,8 @@ export const styles = css`
     color: var(--dem-text-main);
     font-size: 0.72rem;
     line-height: 1.2;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .chip span {
@@ -502,6 +584,7 @@ export const styles = css`
     gap: 4px;
     padding: 10px;
     text-align: center;
+    min-width: 0;
   }
 
   .node-icon {
@@ -515,6 +598,7 @@ export const styles = css`
 
   .node-value {
     font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
   .value-row {
@@ -535,6 +619,7 @@ export const styles = css`
 
   .value-row strong {
     text-align: right;
+    overflow-wrap: anywhere;
   }
 
   .load-list,
@@ -562,9 +647,7 @@ export const styles = css`
   .load-meta strong,
   .load-meta span {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   button {
@@ -599,23 +682,45 @@ export const styles = css`
     }
 
     .flow-hero {
-      height: 318px;
+      min-height: 330px;
+    }
+
+    .hero-title,
+    .action-summary {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-title {
+      display: grid;
+    }
+
+    .header-badges {
+      justify-content: flex-start;
+    }
+
+    .action-summary {
+      align-items: start;
+    }
+
+    .action-next {
+      padding-left: 0;
+      padding-top: 9px;
+      border-left: 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
     }
 
     .sun-node {
-      width: 72px;
+      width: 74px;
       min-height: 60px;
       padding: 6px;
     }
 
     .controller {
-      left: calc(50% - 48px);
       width: 96px;
       min-height: 80px;
     }
 
     .battery {
-      left: calc(50% - 48px);
       width: 96px;
     }
 
@@ -629,9 +734,9 @@ export const styles = css`
       grid-column: span 12;
     }
 
-    .grid { left: 2px; }
-    .load { right: 2px; }
-    .heat { right: 10px; }
-    .ev { left: 10px; }
+    .flow-hero .grid { left: 2px; }
+    .flow-hero .load { right: 2px; }
+    .flow-hero .heat { right: 10px; }
+    .flow-hero .ev { left: 10px; }
   }
 `;
