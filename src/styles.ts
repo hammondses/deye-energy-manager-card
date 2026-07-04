@@ -3,8 +3,8 @@ import { css } from "lit";
 export const styles = css`
   :host {
     display: block;
-    --dem-card-bg: transparent;
-    --dem-panel-bg: transparent;
+    --dem-card-bg: var(--card-background-color, var(--ha-card-background, var(--secondary-background-color, #1f2937)));
+    --dem-panel-bg: var(--secondary-background-color, rgba(31, 41, 55, 0.72));
     --dem-border: rgba(148, 163, 184, 0.2);
     --dem-accent-good: #22c55e;
     --dem-accent-warn: #f59e0b;
@@ -35,10 +35,10 @@ export const styles = css`
 
   ha-card {
     overflow: visible;
-    background: transparent;
+    background: var(--dem-card-bg);
     color: var(--dem-text-main);
-    border: 0;
-    box-shadow: none;
+    border: 1px solid var(--dem-border);
+    box-shadow: var(--ha-card-box-shadow, none);
   }
 
   .card {
