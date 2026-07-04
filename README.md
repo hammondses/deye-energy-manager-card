@@ -13,7 +13,7 @@ This pass focuses on correct structure, entity mapping, responsive layout, and c
 ## Features
 
 - Compact header plus active-action summary showing what the controller is doing now, why, and what condition changes next.
-- Sunsynk-style central-controller power-flow hero for PV, grid, load, battery, EV, and thermal loads.
+- Optional power-flow hero for PV, grid, load, battery, EV, and thermal loads. Keep this off when using a dedicated Sunsynk card.
 - Compact battery and energy budget strip with SOC target, need, solar left, and discretionary budget.
 - One or two rows of high-priority decision chips.
 - Collapsed details drawer for budget calculation, full gate matrix, reasons, SOC source, and managed loads.
@@ -74,7 +74,7 @@ entity_prefix: garage_deye_energy_manager
 compact: true
 show_details: false
 show_controls: false
-show_power_flow: true
+show_power_flow: false
 show_debug_reasons: false
 animate_flows: true
 entities:
@@ -86,7 +86,7 @@ entities:
 
 `entity_prefix` defaults to `garage_deye_energy_manager`.
 `compact` defaults to `true`. Set `compact: false` to use the original Pass 1 expanded diagnostic layout.
-Controls are shown by default. Set `show_controls: false` to hide them.
+Controls are shown by default. Set `show_controls: false` to hide them. `show_power_flow` defaults to `false` because this card is intended to complement a dedicated Sunsynk/power-flow card, not replace it.
 
 ## Core Entities
 

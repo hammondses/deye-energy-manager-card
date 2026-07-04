@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.3.2";
+const CARD_VERSION = "0.3.3";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -41,7 +41,7 @@ export class DeyeEnergyManagerCard extends LitElement {
       compact: true,
       show_details: false,
       show_controls: true,
-      show_power_flow: true,
+      show_power_flow: false,
       show_debug_reasons: false,
       animate_flows: true,
       ...config,
@@ -131,7 +131,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
     const budget = numberState(this.entity("discretionaryEnergyBudget"));
     const tone = statusToneForPolicy(policy);
-    const reason = cleanState(this.entity("energyBudgetReason")) ?? cleanState(this.entity("thermalActionReason"));
+    const reason = this.primaryReason();
 
     return html`
       <section class="header ${tone}">
@@ -148,6 +148,7 @@ export class DeyeEnergyManagerCard extends LitElement {
           ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey", entityId: this.entities?.tariffWindow })}
           ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue", entityId: this.entities?.solarPhase })}
           ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey", entityId: this.entities?.activePlan })}
+          ${this.cheapGridChip()}
         </div>
         ${reason ? html`<div class="reason">${reason}</div>` : nothing}
       </section>
@@ -179,9 +180,21 @@ export class DeyeEnergyManagerCard extends LitElement {
           ${chip({ label: "Tariff", value: formatLabel(cleanState(this.entity("tariffWindow"))), tone: "grey", entityId: this.entities?.tariffWindow })}
           ${chip({ label: "Solar", value: formatLabel(cleanState(this.entity("solarPhase"))), tone: "blue", entityId: this.entities?.solarPhase })}
           ${chip({ label: "Plan", value: formatLabel(cleanState(this.entity("activePlan"))), tone: "grey", entityId: this.entities?.activePlan })}
+          ${this.cheapGridChip()}
         </div>
       </section>
     `;
+  }
+
+  private cheapGridChip(): TemplateResult | typeof nothing {
+    const mode = cleanState(this.entity("cheapGridMode"));
+    if (!mode || mode === "off") return nothing;
+    return chip({
+      label: "Cheap grid",
+      value: formatLabel(mode),
+      tone: mode === "heavy_grid_charge" || mode === "top_up_to_morning_target" ? "blue" : "grey",
+      entityId: this.entities?.cheapGridMode,
+    });
   }
 
   private renderActionSummary(flow: FlowState): TemplateResult {
@@ -190,12 +203,12 @@ export class DeyeEnergyManagerCard extends LitElement {
       <section class=${`action-summary ${summary.tone}`} data-entity-id=${this.entities?.expectedAction ?? this.entities?.thermalExpectedAction ?? ""}>
         <div class="action-icon"><ha-icon icon=${summary.icon}></ha-icon></div>
         <div class="action-copy">
-          <span>Active now</span>
+          <span>Mode</span>
           <strong>${summary.title}</strong>
-          <p>${summary.detail}</p>
+          <em>${summary.detail}</em>
         </div>
         <div class="action-next">
-          <span>Next</span>
+          <span>Target</span>
           <strong>${summary.next}</strong>
         </div>
       </section>
@@ -205,9 +218,6 @@ export class DeyeEnergyManagerCard extends LitElement {
   private activeSummary(flow: FlowState): { title: string; detail: string; next: string; tone: StatusTone; icon: string } {
     const policy = cleanState(this.entity("thermalPolicyState"));
     const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
-    const reason = cleanState(this.entity("evDecisionReason"))
-      ?? cleanState(this.entity("energyBudgetReason"))
-      ?? cleanState(this.entity("thermalActionReason"));
     const evCharging = binaryOn(this.entity("evChargingDetected")) ?? flow.evActive;
     const evBypass = binaryOn(this.entity("evGridBypassRequired"));
     const evLatch = binaryOn(this.entity("evLatchActive"));
@@ -215,14 +225,15 @@ export class DeyeEnergyManagerCard extends LitElement {
     const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
     const budget = numberState(this.entity("discretionaryEnergyBudget"));
     const soc = this.batterySoc();
-    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const target = this.activePolicyTarget();
     const need = numberState(this.entity("batteryKwhNeededToTarget"));
+    const cheapMode = cleanState(this.entity("cheapGridMode"));
 
     if (evCharging && evBypass) {
       return {
-        title: "EV cheap-grid bypass",
-        detail: "Cheap grid is feeding the EV and house. Battery grid top-up is paused while the EV is active.",
-        next: evLatch ? "Resume after EV stop and latch clear" : "Resume when EV stops",
+        title: "EV bypass",
+        detail: "Grid -> EV",
+        next: evLatch ? "Latch" : "Stop",
         tone: "blue",
         icon: "mdi:ev-station",
       };
@@ -230,9 +241,9 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     if (policy === "emergency_shed") {
       return {
-        title: "Emergency load shed",
-        detail: reason ?? "Battery reserve protection is active and managed loads are being removed.",
-        next: "Restore after reserve recovers",
+        title: "Emergency shed",
+        detail: "Loads off",
+        next: "Recover",
         tone: "red",
         icon: "mdi:alert-octagon",
       };
@@ -240,9 +251,9 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     if (policy === "shed") {
       return {
-        title: "Shedding managed loads",
-        detail: reason ?? "The controller is reducing discretionary load to protect the energy plan.",
-        next: "Normalise when budget improves",
+        title: "Shed",
+        detail: "Reduce load",
+        next: "Normalise",
         tone: "orange",
         icon: "mdi:power-plug-off",
       };
@@ -250,9 +261,9 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     if (policy === "solar_soak_full_send" || policy === "solar_soak_allowed") {
       return {
-        title: policy === "solar_soak_full_send" ? "Full solar soak" : "Solar soak allowed",
-        detail: reason ?? "Surplus solar budget is available for managed loads.",
-        next: reachable === false ? "Re-check target reachability" : "Hold until budget changes",
+        title: policy === "solar_soak_full_send" ? "Full soak" : "Solar soak",
+        detail: `Budget ${formatEnergy(budget)}`,
+        next: reachable === false ? "Check" : "Hold",
         tone: policy === "solar_soak_full_send" ? "bright-green" : "green",
         icon: "mdi:weather-sunny",
       };
@@ -260,20 +271,19 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     if (paidAvoid) {
       return {
-        title: "Avoiding paid grid import",
-        detail: "Active reserve is lowered so the battery can serve house load instead of preserving charge.",
-        next: "Return reserve at cheap grid or solar window",
+        title: "Paid avoid",
+        detail: "Battery -> load",
+        next: formatPercent(target.value),
         tone: "amber",
         icon: "mdi:transmission-tower-off",
       };
     }
 
     if (flow.batteryCharging) {
-      const targetDetail = `SOC ${formatPercent(soc)} to target ${formatPercent(target)}${need !== undefined ? `, ${formatEnergy(need)} needed` : ""}`;
       return {
-        title: "Battery top-up active",
-        detail: `Charging at ${formatPower(flow.batteryCharge)}. ${targetDetail}.`,
-        next: budget !== undefined && budget < 0 ? "Stop if budget is exhausted" : `Stop at ${formatPercent(target)}`,
+        title: cheapMode === "top_up_to_morning_target" ? "Top-up" : "Charging",
+        detail: `${formatPower(flow.batteryCharge)}${need !== undefined ? ` · ${formatEnergy(need)}` : ""}`,
+        next: formatPercent(target.value),
         tone: "green",
         icon: "mdi:battery-charging",
       };
@@ -281,9 +291,9 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     if (flow.batteryDischarging) {
       return {
-        title: "Battery serving load",
-        detail: `Battery is supplying ${formatPower(flow.batteryDischarge)} to reduce grid import.`,
-        next: "Import only when reserve requires it",
+        title: "Battery load",
+        detail: formatPower(flow.batteryDischarge),
+        next: formatPercent(target.value),
         tone: "amber",
         icon: "mdi:battery-arrow-down",
       };
@@ -291,8 +301,8 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     return {
       title: formatLabel(expected),
-      detail: reason ?? "No high-priority override is active.",
-      next: "Waiting for tariff, solar, SOC, or load change",
+      detail: `SOC ${formatPercent(soc)}`,
+      next: formatPercent(target.value),
       tone: statusToneForPolicy(policy),
       icon: "mdi:lightning-bolt-circle",
     };
@@ -339,18 +349,56 @@ export class DeyeEnergyManagerCard extends LitElement {
     return undefined;
   }
 
+  private activePolicyTarget(): { value?: number; label: string; entityId?: string } {
+    const cheapMode = cleanState(this.entity("cheapGridMode"));
+    const paidAvoid = binaryOn(this.entity("paidGridAvoidanceRequired"));
+    const energyTarget = numberState(this.entity("energyBudgetTargetSoc"));
+    const energyName = cleanState(this.entity("energyBudgetTargetName"));
+    const morningTarget = numberState(this.entity("morningTargetSoc"));
+    const preserveTarget = numberState(this.entity("cheapGridPreserveTargetSoc"));
+    const gridTarget = numberState(this.entity("gridChargeTargetSoc"));
+    const paidFloor = numberState(this.entity("paidTimeFloorSoc"));
+    const dailyTarget = numberState(this.entity("dailyBatteryTargetSoc"));
+
+    if (cheapMode === "top_up_to_morning_target") {
+      return { value: gridTarget ?? morningTarget ?? energyTarget, label: "7am", entityId: this.entities?.gridChargeTargetSoc };
+    }
+    if (cheapMode === "heavy_grid_charge") {
+      return { value: gridTarget ?? energyTarget, label: "Charge", entityId: this.entities?.gridChargeTargetSoc };
+    }
+    if (cheapMode === "preserve" || cheapMode === "ev_bypass") {
+      return { value: preserveTarget ?? morningTarget ?? energyTarget, label: "Reserve", entityId: this.entities?.cheapGridPreserveTargetSoc };
+    }
+    if (paidAvoid) {
+      return { value: paidFloor ?? energyTarget, label: "Floor", entityId: this.entities?.paidTimeFloorSoc };
+    }
+    if (energyTarget !== undefined) {
+      return { value: energyTarget, label: formatLabel(energyName), entityId: this.entities?.energyBudgetTargetSoc };
+    }
+    return { value: dailyTarget, label: "Daily", entityId: this.entities?.dailyBatteryTargetSoc };
+  }
+
+  private primaryReason(): string | undefined {
+    const expected = cleanState(this.entity("expectedAction"));
+    const cheapMode = cleanState(this.entity("cheapGridMode"));
+    if ((expected?.startsWith("cheap_grid") || cheapMode && cheapMode !== "off") && cleanState(this.entity("cheapGridReason"))) {
+      return cleanState(this.entity("cheapGridReason"));
+    }
+    return cleanState(this.entity("energyBudgetReason")) ?? cleanState(this.entity("thermalActionReason"));
+  }
+
   private renderFlowHero(flow: FlowState): TemplateResult {
     const soc = this.batterySoc();
-    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const target = this.activePolicyTarget();
     const policy = cleanState(this.entity("thermalPolicyState"));
     const expected = cleanState(this.entity("expectedAction")) ?? cleanState(this.entity("thermalExpectedAction"));
     const tone = statusToneForPolicy(policy);
     const underfloorAllowed = binaryOn(this.entity("underfloorComfortAllowed"));
     const underfloorPolicy = cleanState(this.entity("underfloorPolicyState"));
     const batteryState = flow.batteryCharging
-      ? `Charging ${formatPower(flow.batteryCharge)}`
+      ? `In ${formatPower(flow.batteryCharge)}`
       : flow.batteryDischarging
-        ? `Discharging ${formatPower(flow.batteryDischarge)}`
+        ? `Out ${formatPower(flow.batteryDischarge)}`
         : "Idle";
     const heatLabel = flow.thermalActive
       ? formatLabel(flow.thermalLoads)
@@ -367,7 +415,7 @@ export class DeyeEnergyManagerCard extends LitElement {
         ${this.powerNode("Grid", "mdi:transmission-tower", this.gridLabel(flow), undefined, "grid", flow.gridImporting || flow.gridExporting, this.entities?.gridPower)}
         ${this.controllerNode(policy, expected, tone)}
         ${this.powerNode("Load", "mdi:home-lightning-bolt", formatPower(flow.housePower), undefined, "load", (flow.housePower ?? 0) > 100, this.entities?.housePower)}
-        ${this.batteryNode(soc, target, batteryState)}
+        ${this.batteryNode(soc, target.value, batteryState, target.label)}
         ${this.powerNode("EV", "mdi:ev-station", flow.evActive ? formatPower(flow.evPower) : "Idle", undefined, "ev satellite", flow.evActive, this.entities?.evDetectedPower)}
         ${this.powerNode("Heat/Floor", "mdi:heat-pump", heatLabel, undefined, "heat satellite", flow.thermalActive || underfloorAllowed === false, this.entities?.activeThermalLoads)}
       </section>
@@ -431,7 +479,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     `;
   }
 
-  private batteryNode(soc?: number, target?: number, stateText = "Idle"): TemplateResult {
+  private batteryNode(soc?: number, target?: number, stateText = "Idle", targetLabel = "Target"): TemplateResult {
     const fill = Math.max(0, Math.min(100, soc ?? 0));
     const marker = Math.max(0, Math.min(100, target ?? 0));
     return html`
@@ -444,7 +492,8 @@ export class DeyeEnergyManagerCard extends LitElement {
           </div>
         </div>
         <span>Battery</span>
-        <strong>${formatPercent(soc)} · ${stateText}</strong>
+        <strong>${formatPercent(soc)}</strong>
+        <em>${stateText} · ${targetLabel} ${formatPercent(target)}</em>
       </div>
     `;
   }
@@ -453,7 +502,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     const soc = this.batterySoc();
     const source = cleanState(this.entity("socSource"));
     const age = numberState(this.entity("socAgeMinutes"));
-    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const target = this.activePolicyTarget();
     const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
     const need = numberState(this.entity("batteryKwhNeededToTarget"));
     const solar = numberState(this.entity("remainingSolarBudget"));
@@ -461,9 +510,10 @@ export class DeyeEnergyManagerCard extends LitElement {
 
     return html`
       <section class="metric-strip">
-        ${this.metricPill("SOC", `${formatPercent(soc)} to ${formatPercent(target)}`, source === "last_known_good" ? "amber" : "blue", source === "last_known_good" ? `SOC cached${age !== undefined ? ` · ${Math.round(age)}m` : ""}` : undefined, this.entities?.rawSoc)}
-        ${this.metricPill("Need", formatEnergy(need), need !== undefined && need > 0 ? "amber" : "green", reachable === false ? "Target not reachable" : undefined, this.entities?.batteryKwhNeededToTarget)}
-        ${this.metricPill("Solar left", formatEnergy(solar), "blue", undefined, this.entities?.remainingSolarBudget)}
+        ${this.metricPill("SOC", formatPercent(soc), source === "last_known_good" ? "amber" : "blue", source === "last_known_good" && age !== undefined ? `${Math.round(age)}m cache` : undefined, this.entities?.rawSoc)}
+        ${this.metricPill(target.label, formatPercent(target.value), "grey", undefined, target.entityId)}
+        ${this.metricPill("Need", formatEnergy(need), need !== undefined && need > 0 ? "amber" : "green", reachable === false ? "Not reachable" : undefined, this.entities?.batteryKwhNeededToTarget)}
+        ${this.metricPill("Solar", formatEnergy(solar), "blue", undefined, this.entities?.remainingSolarBudget)}
         ${this.metricPill("Budget", formatEnergy(budget), budgetTone(budget), undefined, this.entities?.discretionaryEnergyBudget)}
       </section>
     `;
@@ -481,7 +531,17 @@ export class DeyeEnergyManagerCard extends LitElement {
 
   private renderCompactDecisionChips(): TemplateResult {
     const chips = this.compactGateChips();
-    return html`<section class="compact-decisions">${chips}</section>`;
+    const cheapMode = cleanState(this.entity("cheapGridMode"));
+    const target = this.activePolicyTarget();
+    return html`
+      <section class="compact-decisions">
+        ${cheapMode && cheapMode !== "off"
+          ? chip({ label: "Cheap", value: formatLabel(cheapMode), tone: cheapMode === "heavy_grid_charge" ? "amber" : "blue", entityId: this.entities?.cheapGridMode })
+          : nothing}
+        ${chip({ label: target.label, value: formatPercent(target.value), tone: "grey", entityId: target.entityId })}
+        ${chips}
+      </section>
+    `;
   }
 
   private compactGateChips(): Array<TemplateResult | typeof nothing> {
@@ -626,14 +686,16 @@ export class DeyeEnergyManagerCard extends LitElement {
     const soc = this.batterySoc();
     const source = cleanState(this.entity("socSource"));
     const age = numberState(this.entity("socAgeMinutes"));
-    const target = numberState(this.entity("dailyBatteryTargetSoc"));
+    const policyTarget = this.activePolicyTarget();
+    const dailyTarget = numberState(this.entity("dailyBatteryTargetSoc"));
+    const morningTarget = numberState(this.entity("morningTargetSoc"));
     const reachable = binaryOn(this.entity("batteryTargetReachableToday"));
     const socLine = `${formatPercent(soc)}${source ? ` · ${source.replace(/_/g, " ")}` : ""}${age !== undefined ? ` · ${Math.round(age)}m old` : ""}`;
 
     return html`
       <section class="panel">
         <div class="panel-header">
-          <h3>Battery Target</h3>
+          <h3>Battery Targets</h3>
           ${chip({
             label: "Reachable",
             value: reachable === undefined ? "Unknown" : reachable ? "Yes" : "No",
@@ -641,7 +703,9 @@ export class DeyeEnergyManagerCard extends LitElement {
           })}
         </div>
         ${valueRow("SOC", socLine, source === "last_known_good" ? "amber" : undefined)}
-        ${valueRow("Target SOC", formatPercent(target))}
+        ${valueRow("Policy target", `${policyTarget.label} ${formatPercent(policyTarget.value)}`)}
+        ${valueRow("Morning target", formatPercent(morningTarget))}
+        ${valueRow("Daily target", formatPercent(dailyTarget))}
         ${valueRow("Need", formatEnergy(numberState(this.entity("batteryKwhNeededToTarget"))))}
         ${reachable === false ? valueRow("Status", "Target not reachable today", "red") : nothing}
         ${valueRow("Projected End SOC", formatPercent(numberState(this.entity("projectedEndSoc"))))}
@@ -659,6 +723,7 @@ export class DeyeEnergyManagerCard extends LitElement {
     const positive = binaryOn(this.entity("discretionaryBudgetPositive"));
     const reason = cleanState(this.entity("energyBudgetReason"));
     const tone = budgetTone(budget);
+    const target = this.activePolicyTarget();
 
     return html`
       <section class="panel">
@@ -666,6 +731,7 @@ export class DeyeEnergyManagerCard extends LitElement {
           <h3>Energy Budget</h3>
           ${chip({ label: "Budget", value: formatEnergy(budget), tone })}
         </div>
+        ${valueRow("Target", `${target.label} ${formatPercent(target.value)}`)}
         ${valueRow("Discretionary", formatEnergy(budget), tone)}
         ${valueRow("Budget positive", positive === undefined ? "Unknown" : positive ? "Yes" : "No", booleanTone(positive))}
         <div class="budget-line">
