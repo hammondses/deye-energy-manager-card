@@ -159,6 +159,46 @@ export const styles = css`
     min-width: 0;
   }
 
+  .automation-status {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
+    padding: 10px;
+    border: 1px solid color-mix(in srgb, var(--chip-tone) 48%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--chip-tone) 7%, transparent);
+    min-width: 0;
+  }
+
+  .automation-status ha-icon {
+    color: var(--chip-tone);
+    --mdc-icon-size: 22px;
+  }
+
+  .automation-status strong,
+  .automation-status span,
+  .automation-status em {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .automation-status strong {
+    font-size: 0.9rem;
+  }
+
+  .automation-status span,
+  .automation-status em {
+    margin-top: 2px;
+    color: var(--dem-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.25;
+  }
+
+  .automation-status em {
+    font-style: normal;
+  }
+
   [data-entity-id]:not([data-entity-id=""]) {
     cursor: pointer;
   }

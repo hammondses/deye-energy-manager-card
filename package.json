@@ -1,6 +1,6 @@
 {
   "name": "deye-energy-manager-card",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Home Assistant Lovelace custom card for the Deye Energy Manager integration.",
   "type": "module",
   "main": "dist/deye-energy-manager-card.js",

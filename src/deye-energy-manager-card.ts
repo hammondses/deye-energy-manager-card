@@ -22,7 +22,7 @@ import { buildFlowState, type FlowState } from "./power-flow";
 import { styles } from "./styles";
 import type { DeyeEnergyManagerCardConfig, EntityKey, EntityMap, HassEntityState, HomeAssistant, StatusTone } from "./types";
 
-const CARD_VERSION = "0.3.4";
+const CARD_VERSION = "0.3.5";
 
 @customElement("deye-energy-manager-card")
 export class DeyeEnergyManagerCard extends LitElement {
@@ -100,6 +100,7 @@ export class DeyeEnergyManagerCard extends LitElement {
         <div class="card compact-card ${this.config?.animate_flows === false ? "no-animate" : "animate"}" @click=${this.handleEntityClick}>
           ${missingRequired.length ? this.renderSetupWarning(missingRequired) : nothing}
           ${this.renderCompactHeader(tone)}
+          ${this.renderAutomationStatus()}
           ${this.renderActionSummary(flow)}
           ${this.config?.show_power_flow === false ? nothing : this.renderFlowHero(flow)}
           ${this.renderMetricStrip()}
@@ -210,6 +211,47 @@ export class DeyeEnergyManagerCard extends LitElement {
         <div class="action-next">
           <span>Target</span>
           <strong>${summary.next}</strong>
+        </div>
+      </section>
+    `;
+  }
+
+  private renderAutomationStatus(): TemplateResult {
+    const thermalEnabled = binaryOn(this.entity("thermalControlEnabled"));
+    const directEnabled = binaryOn(this.entity("directClimateControlEnabled"));
+    const mode = cleanState(this.entity("thermalActuationMode"));
+    const selectedLoad = cleanState(this.entity("thermalLoadToAdd"));
+    const lastAction = cleanState(this.entity("lastControlAction"));
+
+    let title = "Automatic heating ready";
+    let detail = selectedLoad ? `Selected: ${formatLabel(selectedLoad)}` : "Waiting for an eligible load";
+    let tone: StatusTone = "green";
+    let icon = "mdi:robot-happy-outline";
+
+    if (thermalEnabled === false) {
+      title = "Thermal control is off";
+      detail = "Decisions are visible, but heating is disabled";
+      tone = "red";
+      icon = "mdi:power-plug-off";
+    } else if (mode !== "direct") {
+      title = "Advisory only";
+      detail = "The manager will recommend heating but will not start it";
+      tone = "orange";
+      icon = "mdi:message-alert-outline";
+    } else if (directEnabled === false) {
+      title = "Direct climate control is off";
+      detail = "Automatic mode is selected, but the actuator gate is closed";
+      tone = "red";
+      icon = "mdi:lock-outline";
+    }
+
+    return html`
+      <section class=${`automation-status ${tone}`} data-entity-id=${this.entities?.thermalActuationMode ?? ""}>
+        <ha-icon icon=${icon}></ha-icon>
+        <div>
+          <strong>${title}</strong>
+          <span>${detail}</span>
+          ${lastAction ? html`<em>Last: ${formatLabel(lastAction)}</em>` : nothing}
         </div>
       </section>
     `;
